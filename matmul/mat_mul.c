@@ -100,7 +100,6 @@ void parse_opt(int argc, char** argv)
 		{
 		case 'p':
 			// print matrix data.
-            printf("asdf");
 			print_matrix = 1;
 			break;
 
