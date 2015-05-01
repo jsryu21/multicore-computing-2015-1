@@ -18,11 +18,11 @@ void mat_mul( float c[NDIM][NDIM], float a[NDIM][NDIM], float b[NDIM][NDIM] )
 	int i, j, k;
 	
 	// C = AB
-    for (k = 0; k < NDIM; ++k) {
-        for (i = 0; i < NDIM; ++i) {
-            float r = a[i][k];
-            for (j = 0; j < NDIM; ++j) {
-                c[i][j] += r * b[k][j];
+    for (j = 0; j < NDIM; ++j) {
+        for (k = 0; k < NDIM; ++k) {
+            float r = a[k][j];
+            for (i = 0; i < NDIM; ++i) {
+                c[i][j] += a[i][k] * r;
             }
         }
     }
