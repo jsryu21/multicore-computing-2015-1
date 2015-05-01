@@ -5,6 +5,8 @@
 #include "timers.h"
 
 #define NDIM    2048
+#define B  1024
+#define MIN(a,b) (((a)<(b))?(a):(b))
 
 float a[NDIM][NDIM];
 float b[NDIM][NDIM];
@@ -15,14 +17,24 @@ int validation = 0;
 
 void mat_mul( float c[NDIM][NDIM], float a[NDIM][NDIM], float b[NDIM][NDIM] )
 {
-	int i, j, k;
-	
-	// C = AB
-    for (j = 0; j < NDIM; ++j) {
-        for (k = 0; k < NDIM; ++k) {
-            float r = a[k][j];
-            for (i = 0; i < NDIM; ++i) {
-                c[i][j] += a[i][k] * r;
+    int i, j, k;
+    int ii, jj, kk;
+
+    // C = AB
+    for (kk = 0; kk < NDIM; kk += B) {
+        int kkB = MIN(kk + B, NDIM);
+        for (ii = 0; ii < NDIM; ii += B) {
+            int iiB = MIN(ii + B, NDIM);
+            for (jj = 0; jj < NDIM; jj += B) {
+                int jjB = MIN(jj + B, NDIM);
+                for (k = kk; k < kkB; ++k) {
+                    for (i = ii; i < iiB; ++i) {
+                        float r = a[i][k];
+                        for (j = jj; j < jjB; ++j) {
+                            c[i][j] += r * b[k][j];
+                        }
+                    }
+                }
             }
         }
     }
