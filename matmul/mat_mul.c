@@ -6,13 +6,13 @@
 #include <math.h>
 #include "timers.h"
 
-#define NDIM    2048
+int NDIM = 2048;
 #define MIN(a,b) (((a)<(b))?(a):(b))
 int NUM_THREADS = 4;
 
-float a[NDIM][NDIM];
-float b[NDIM][NDIM];
-float c[NDIM][NDIM];
+float** a;
+float** b;
+float** c;
 
 int print_matrix = 0;
 int validation = 0;
@@ -40,7 +40,7 @@ void *BusyWork(void *threadarg)
     pthread_exit((void*)my_data);
 }
 
-void mat_mul( float c[NDIM][NDIM], float a[NDIM][NDIM], float b[NDIM][NDIM] )
+void mat_mul( float** c, float** a, float** b )
 {
     /* https://computing.llnl.gov/tutorials/pthreads/#Joining */
     pthread_t thread[NUM_THREADS];
@@ -79,7 +79,7 @@ void mat_mul( float c[NDIM][NDIM], float a[NDIM][NDIM], float b[NDIM][NDIM] )
 
 /************************** DO NOT TOUCH BELOW HERE ******************************/
 
-void check_mat_mul( float c[NDIM][NDIM], float a[NDIM][NDIM], float b[NDIM][NDIM] )
+void check_mat_mul( float** c, float** a, float** b )
 {
 	int i, j, k;
 	float sum;
@@ -113,7 +113,7 @@ void check_mat_mul( float c[NDIM][NDIM], float a[NDIM][NDIM], float b[NDIM][NDIM
 		printf("FAILED.\n");
 }
 
-void print_mat( float mat[NDIM][NDIM] )
+void print_mat( float** mat )
 {
 	int i, j;
 
@@ -136,13 +136,14 @@ void print_help(const char* prog_name)
 	printf("  -v : validate matrix multiplication.\n");
 	printf("  -h : print this page.\n");
 	printf("  -t 4 : designate the number of threads(default : 4).\n");
+	printf("  -m 2048 : designate the number of matrix size(default : 2048).\n");
 }
 
 void parse_opt(int argc, char** argv)
 {
 	int opt;
 
-	while( (opt = getopt(argc, argv, "pvht:ikjs:")) != -1 )
+	while( (opt = getopt(argc, argv, "pvht:m:ikjs:")) != -1 )
 	{
 		switch(opt)
 		{
@@ -160,6 +161,10 @@ void parse_opt(int argc, char** argv)
             NUM_THREADS = atoi(optarg);
             break;
 
+        case 'm':
+            NDIM = atoi(optarg);
+            break;
+
 		case 'h':
 		default:
 			print_help(argv[0]);
@@ -175,6 +180,18 @@ int main(int argc, char** argv)
 
 	parse_opt( argc, argv );
     thread_data_array = (struct thread_data*)malloc(sizeof(struct thread_data) * NUM_THREADS);
+    a = (float**)malloc(NDIM * sizeof(float*));
+    for (i = 0; i < NDIM; ++i) {
+        a[i] = (float*)malloc(NDIM * sizeof(float));
+    }
+    b = (float**)malloc(NDIM * sizeof(float*));
+    for (i = 0; i < NDIM; ++i) {
+        b[i] = (float*)malloc(NDIM * sizeof(float));
+    }
+    c = (float**)malloc(NDIM * sizeof(float*));
+    for (i = 0; i < NDIM; ++i) {
+        c[i] = (float*)malloc(NDIM * sizeof(float));
+    }
 
 	for( i = 0; i < NDIM; i++ )
 	{
@@ -208,6 +225,18 @@ int main(int argc, char** argv)
 		print_mat(c);
 	}
 
+    for (i = 0; i < NDIM; ++i) {
+        free(c[i]);
+    }
+    free(c);
+    for (i = 0; i < NDIM; ++i) {
+        free(b[i]);
+    }
+    free(b);
+    for (i = 0; i < NDIM; ++i) {
+        free(a[i]);
+    }
+    free(a);
     free(thread_data_array);
 	return 0;
 }
