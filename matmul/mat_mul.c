@@ -8,7 +8,7 @@
 
 #define NDIM    2048
 #define MIN(a,b) (((a)<(b))?(a):(b))
-#define NUM_THREADS  4
+int NUM_THREADS = 4;
 
 float a[NDIM][NDIM];
 float b[NDIM][NDIM];
@@ -23,12 +23,11 @@ struct thread_data {
     int to;
 };
 
-struct thread_data thread_data_array[NUM_THREADS];
+struct thread_data* thread_data_array;
 
 void *BusyWork(void *threadarg)
 {
     struct thread_data* my_data = (struct thread_data*)threadarg;
-    printf("Thread %d starting...\n", my_data->thread_id);
     int i, j, k;
     for (k = 0; k < NDIM; ++k) {
         for (i = my_data->from; i < my_data->to; ++i) {
@@ -56,7 +55,6 @@ void mat_mul( float c[NDIM][NDIM], float a[NDIM][NDIM], float b[NDIM][NDIM] )
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
     for(t = 0; t < NUM_THREADS; t++) {
-        printf("Main: creating thread %d\n", t);
         struct thread_data* my_data = &thread_data_array[t];
         my_data->thread_id = t;
         my_data->from = gap * t;
@@ -76,10 +74,7 @@ void mat_mul( float c[NDIM][NDIM], float a[NDIM][NDIM], float b[NDIM][NDIM] )
             printf("ERROR; return code from pthread_join() is %d\n", rc);
             exit(-1);
         }
-        printf("Main: completed join with thread %d having a status of %d\n", t, ((struct thread_data*)status)->from);
     }
-
-    printf("Main: program completed. Exiting.\n");
 }
 
 /************************** DO NOT TOUCH BELOW HERE ******************************/
@@ -134,19 +129,20 @@ void print_mat( float mat[NDIM][NDIM] )
 
 void print_help(const char* prog_name)
 {
-	printf("Usage: %s [-pvh]\n", prog_name );
+	printf("Usage: %s [-pvht]\n", prog_name );
 	printf("\n");
 	printf("OPTIONS\n");
 	printf("  -p : print matrix data.\n");
 	printf("  -v : validate matrix multiplication.\n");
 	printf("  -h : print this page.\n");
+	printf("  -t 4 : designate the number of threads(default : 4).\n");
 }
 
 void parse_opt(int argc, char** argv)
 {
 	int opt;
 
-	while( (opt = getopt(argc, argv, "pvhikjs:")) != -1 )
+	while( (opt = getopt(argc, argv, "pvht:ikjs:")) != -1 )
 	{
 		switch(opt)
 		{
@@ -159,6 +155,10 @@ void parse_opt(int argc, char** argv)
 			// validation
 			validation = 1;
 			break;
+
+        case 't':
+            NUM_THREADS = *optarg - '0';
+            break;
 
 		case 'h':
 		default:
@@ -174,6 +174,7 @@ int main(int argc, char** argv)
 	int i, j, k = 1;
 
 	parse_opt( argc, argv );
+    thread_data_array = (struct thread_data*)malloc(sizeof(struct thread_data) * NUM_THREADS);
 
 	for( i = 0; i < NDIM; i++ )
 	{
@@ -207,5 +208,6 @@ int main(int argc, char** argv)
 		print_mat(c);
 	}
 
+    free(thread_data_array);
 	return 0;
 }

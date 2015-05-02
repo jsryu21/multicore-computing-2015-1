@@ -8,10 +8,10 @@ LDFLAGS=
 all: $(TARGET)
 
 $(TARGET):$(OBJS)
-	$(CC) $(LDFLAGS) $(OBJS) -o $@ -lpthread
+	$(CC) $(LDFLAGS) $(OBJS) -o $@ -pthread -lm
 
 clean:
 	rm -rf $(TARGET) $(OBJS) task*
 
 run: $(TARGET)
-	thorq --add ./$(TARGET) -v
+	thorq --add ./$(TARGET) -v -t 4
