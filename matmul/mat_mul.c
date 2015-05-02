@@ -157,7 +157,7 @@ void parse_opt(int argc, char** argv)
 			break;
 
         case 't':
-            NUM_THREADS = *optarg - '0';
+            NUM_THREADS = atoi(optarg);
             break;
 
 		case 'h':
