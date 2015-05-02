@@ -8,7 +8,7 @@ LDFLAGS=
 all: $(TARGET)
 
 $(TARGET):$(OBJS)
-	$(CC) $(LDFLAGS) $(OBJS) -o $@
+	$(CC) $(LDFLAGS) $(OBJS) -o $@ -lpthread
 
 clean:
 	rm -rf $(TARGET) $(OBJS) task*

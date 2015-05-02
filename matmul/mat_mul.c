@@ -2,11 +2,13 @@
 #include <sys/time.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <pthread.h>
+#include <math.h>
 #include "timers.h"
 
 #define NDIM    2048
-#define B  2
 #define MIN(a,b) (((a)<(b))?(a):(b))
+#define NUM_THREADS  4
 
 float a[NDIM][NDIM];
 float b[NDIM][NDIM];
@@ -15,28 +17,69 @@ float c[NDIM][NDIM];
 int print_matrix = 0;
 int validation = 0;
 
-void mat_mul( float c[NDIM][NDIM], float a[NDIM][NDIM], float b[NDIM][NDIM] )
-{
-    int i, j, k;
-    int ii, jj, kk;
+struct thread_data {
+    int thread_id;
+    int from;
+    int to;
+};
 
-    // C = AB
-    for (ii = 0; ii < NDIM; ii += B) {
-        int iiB = MIN(ii + B, NDIM);
-        for (jj = 0; jj < NDIM; jj += B) {
-            int jjB = MIN(jj + B, NDIM);
-            for (kk = 0; kk < NDIM; kk += B) {
-                int kkB = MIN(kk + B, NDIM);
-                for (i = ii; i < iiB; ++i) {
-                    for (j = jj; j < jjB; ++j) {
-                        for (k = kk; k < kkB; ++k) {
-                            c[i][j] += a[i][k] * b[k][j];
-                        }
-                    }
-                }
+struct thread_data thread_data_array[NUM_THREADS];
+
+void *BusyWork(void *threadarg)
+{
+    struct thread_data* my_data = (struct thread_data*)threadarg;
+    printf("Thread %d starting...\n", my_data->thread_id);
+    int i, j, k;
+    for (k = 0; k < NDIM; ++k) {
+        for (i = my_data->from; i < my_data->to; ++i) {
+            float r = a[i][k];
+            for (j = 0; j < NDIM; ++j) {
+                c[i][j] += r * b[k][j];
             }
         }
     }
+    pthread_exit((void*)my_data);
+}
+
+void mat_mul( float c[NDIM][NDIM], float a[NDIM][NDIM], float b[NDIM][NDIM] )
+{
+    /* https://computing.llnl.gov/tutorials/pthreads/#Joining */
+    pthread_t thread[NUM_THREADS];
+    pthread_attr_t attr;
+    int rc;
+    int t;
+    void* status;
+    int gap = (int)ceil(NDIM / NUM_THREADS);
+
+    /* Initialize and set thread detached attribute */
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+
+    for(t = 0; t < NUM_THREADS; t++) {
+        printf("Main: creating thread %d\n", t);
+        struct thread_data* my_data = &thread_data_array[t];
+        my_data->thread_id = t;
+        my_data->from = gap * t;
+        my_data->to = MIN(my_data->from + gap, NDIM);
+        rc = pthread_create(&thread[t], &attr, BusyWork, (void*)my_data);
+        if (rc) {
+            printf("ERROR; return code from pthread_create() is %d\n", rc);
+            exit(-1);
+        }
+    }
+
+    /* Free attribute and wait for the other threads */
+    pthread_attr_destroy(&attr);
+    for(t = 0; t < NUM_THREADS; t++) {
+        rc = pthread_join(thread[t], &status);
+        if (rc) {
+            printf("ERROR; return code from pthread_join() is %d\n", rc);
+            exit(-1);
+        }
+        printf("Main: completed join with thread %d having a status of %d\n", t, ((struct thread_data*)status)->from);
+    }
+
+    printf("Main: program completed. Exiting.\n");
 }
 
 /************************** DO NOT TOUCH BELOW HERE ******************************/
