@@ -38,8 +38,8 @@ void* AssignmentWork(void* threadarg) {
     int data_start_index = my_data->data_start_index;
     int data_end_index = my_data->data_end_index;
 
-    float min_dist = DBL_MAX;
     for (int data_i = data_start_index; data_i < data_end_index; ++data_i) {
+        float min_dist = DBL_MAX;
         for (int class_i = 0; class_i < class_n; class_i++) {
             t.x = data[data_i].x - centroids[class_i].x;
             t.y = data[data_i].y - centroids[class_i].y;
