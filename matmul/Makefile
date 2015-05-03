@@ -14,4 +14,4 @@ clean:
 	rm -rf $(TARGET) $(OBJS) task*
 
 run: $(TARGET)
-	thorq --add ./$(TARGET) -v -t 4
+	thorq --add ./$(TARGET) -v -t 4 -m 2048
