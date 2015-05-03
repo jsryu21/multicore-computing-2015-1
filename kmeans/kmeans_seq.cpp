@@ -5,7 +5,7 @@
 #include <float.h>
 
 
-void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* data, int* partitioned)
+void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* data, int* partitioned, int num_threads)
 {
     // Loop indices for iteration, data and class
     int i, data_i, class_i;

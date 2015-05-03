@@ -10,6 +10,7 @@
 
 #define DATA_DIM 2
 #define DEFAULT_ITERATION 1024
+#define DEFAULT_NUM_THREADS 4
 
 #define GET_TIME(T) __asm__ __volatile__ ("rdtsc\n" : "=A" (T))
 
@@ -21,7 +22,7 @@ int timespec_subtract(struct timespec*, struct timespec*, struct timespec*);
 
 int main(int argc, char** argv)
 {
-    int class_n, data_n, iteration_n;
+    int class_n, data_n, iteration_n, num_threads;
     float *centroids, *data;
     int* partitioned;
     FILE *io_file;
@@ -52,14 +53,14 @@ int main(int argc, char** argv)
     fclose(io_file);
 
     iteration_n = argc > 5 ? atoi(argv[5]) : DEFAULT_ITERATION;
-        
+    num_threads = argc > 6 ? atoi(argv[6]) : DEFAULT_NUM_THREADS;
 
     partitioned = (int*)malloc(sizeof(int)*data_n);
 
 
     clock_gettime(CLOCK_MONOTONIC, &start);
     // Run Kmeans algorithm
-    kmeans(iteration_n, class_n, data_n, (Point*)centroids, (Point*)data, partitioned);
+    kmeans(iteration_n, class_n, data_n, (Point*)centroids, (Point*)data, partitioned, num_threads);
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     timespec_subtract(&spent, &end, &start);
