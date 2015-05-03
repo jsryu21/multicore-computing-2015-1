@@ -12,7 +12,7 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
     // Count number of data in each class
     int* count = (int*)malloc(sizeof(int) * class_n);
     // Temporal point value to calculate distance
-    Point t;
+    Point t(0.f, 0.f);
 
 
     // Iterate through number of interations
