@@ -40,7 +40,6 @@ class TTASlock : public ILock {
 
 struct AssignThreadData {
     AssignThreadData(int class_n, const Point* centroids, const Point* data, int* partitioned);
-    Point* t;
     int class_n;
     const Point* centroids;
     const Point* data;
@@ -81,7 +80,7 @@ UpdateThreadData::UpdateThreadData(const Point* data, const int* partitioned, IL
 
 void* AssignmentWork(void* threadarg) {
     AssignThreadData* my_data = static_cast< AssignThreadData* >(threadarg);
-    Point& t = *(my_data->t);
+    Point t(0.f, 0.f);
     int class_n = my_data->class_n;
     const Point* centroids = my_data->centroids;
     const Point* data = my_data->data;
@@ -140,13 +139,10 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
 {
     // Count number of data in each class
     std::vector< int > count(class_n);
-    // Temporal point value to calculate distance
-    std::vector< Point > ts(num_threads, Point(0.f, 0.f));
     std::vector< AssignThreadData > assignThreadDatas(num_threads, AssignThreadData(class_n, centroids, data, partitioned));
     int data_gap = static_cast< int >(std::ceil(data_n / num_threads));
     for (int thread_id = 0; thread_id < num_threads; ++thread_id) {
         AssignThreadData& my_data = assignThreadDatas[thread_id];
-        my_data.t = &ts[thread_id];
         my_data.data_start_index = data_gap * thread_id;
         my_data.data_end_index = std::min(my_data.data_start_index + data_gap, data_n);
     }
