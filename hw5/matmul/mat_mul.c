@@ -9,18 +9,11 @@
 #include <stdbool.h>
 
 #define MIN(a,b) (((a)<(b))?(a):(b))
-#define SIZE_I 100000
-#define SIZE_J 100000
-#define SIZE_K 100000
+#define SIZE_I 100
+#define SIZE_J 100
+#define SIZE_K 100
 #define PRECISION 0.00001
-
-const char* kernel_src = "__kernel void matrixmul(__global float* C, __global float* A, __global float* B, int wA, int wB) {"
-"    int i = get_global_id(0);"
-"    int j = get_global_id(1);"
-"   if (i == 0 && j == 0) {"
-"       printf(\"%d %d\n\", i, j);"
-"   }"
-"}";
+#define MAX_SOURCE_SIZE (0x100000)
 
 bool print_matrix = false;
 bool validation = false;
@@ -55,7 +48,7 @@ void check_mat_mul(float* matrixC, int widthC, int heightC, float* matrixA, int 
                 size_t indexC = rowIndexC + j;
                 float value = matrixC[indexC];
                 if (fabs(value - sum) > PRECISION) {
-                    //printf("c[%d][%d] is differ(value=%lf correct_value=%lf)!!\n", i, j, value, sum);
+                    printf("c[%d][%d] is differ(value=%lf correct_value=%lf)!!\n", i, j, value, sum);
                     validated = false;
                 }
             }
@@ -144,9 +137,6 @@ int main(int argc, char** argv) {
         size_t rowIndex = (size_t)wA * i;
         for (j = 0; j < wA; ++j) {
             size_t index = rowIndex + j;
-            if (index % 10000 == 0) {
-                printf("%zu\n", index);
-            }
             hostA[index] = 1;
         }
     }
@@ -154,21 +144,33 @@ int main(int argc, char** argv) {
         size_t rowIndex = (size_t)wB * i;
         for (j = 0; j < wB; ++j) {
             size_t index = rowIndex + j;
-            if (index % 10000 == 0) {
-                printf("%zu\n", index);
-            }
             hostB[index] = 2;
         }
     }
     clGetPlatformIDs(1, &platform, NULL);
     clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, NULL);
+    cl_ulong size;
+    clGetDeviceInfo(device, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(cl_ulong), &size, 0);
+    printf("%d\n", size);
     context = clCreateContext(0, 1, &device, NULL, NULL, NULL);
     command_queue = clCreateCommandQueue(context, device, 0, NULL);
     bufferA = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeA, NULL, NULL);
     bufferB = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeB, NULL, NULL);
     bufferC = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeC, NULL, NULL);
-    size_t kernel_src_len = (size_t)strlen(kernel_src);
-    program = clCreateProgramWithSource(context, 1, (const char**)&kernel_src, &kernel_src_len, NULL);
+    FILE* fp;
+    const char fileName[] = "./kernel.cl";
+    size_t source_size;
+    char* source_str;
+    fp = fopen(fileName, "r");
+    if (!fp) {
+        fprintf(stderr, "Failed to load kernel.\n");
+        exit(1);
+    }
+    source_str = (char*)malloc(MAX_SOURCE_SIZE);
+    source_size = fread(source_str, 1, MAX_SOURCE_SIZE, fp);
+    fclose(fp);
+    program = clCreateProgramWithSource(context, 1, (const char**)&source_str, &source_size, NULL);
+    printf("%s\n", source_str);
     clBuildProgram(program, 1, &device, NULL, NULL, NULL);
     kernel = clCreateKernel(program, "matrixmul", NULL);
     clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&bufferC);
@@ -181,10 +183,10 @@ int main(int argc, char** argv) {
     clEnqueueWriteBuffer(command_queue, bufferA, CL_FALSE, 0, sizeA, hostA, 0, NULL, NULL);
     clEnqueueWriteBuffer(command_queue, bufferB, CL_FALSE, 0, sizeB, hostB, 0, NULL, NULL);
     size_t global[2] = {wC, hC};
-    size_t local[2] = {SIZE_I, SIZE_J};
     // launch the kernel
-    clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global, local, 0, NULL, NULL);
+    clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global, NULL, 0, NULL, NULL);
     clEnqueueReadBuffer(command_queue, bufferC, CL_TRUE, 0, sizeC, hostC, 0, NULL, NULL);
+    clFinish(command_queue);
     timer_stop(1);
 
     printf("Time elapsed : %lf sec\n", timer_read(1));
