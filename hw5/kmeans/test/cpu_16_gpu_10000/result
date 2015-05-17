@@ -1,0 +1,4 @@
+seq Job 270105 is enqueued. Time spent: 135.798979845
+cpu Job 270100 is enqueued. Time spent: 15.743496142
+pthread Job 270101 is enqueued. Time spent: 15.049279133
+gpu Job 270102 is enqueued. Time spent: 2.962424044
