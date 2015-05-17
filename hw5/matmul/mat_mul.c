@@ -136,9 +136,13 @@ int main(int argc, char** argv) {
     sizeA = (size_t)hA * wA * sizeof(float);
     sizeB = (size_t)hB * wB * sizeof(float);
     sizeC = (size_t)hC * wC * sizeof(float);
+#ifndef CPU
     hostA = (float*)malloc(sizeA);
     hostB = (float*)malloc(sizeB);
     hostC = (float*)malloc(sizeC);
+    memset(hostA, 0.f, sizeA);
+    memset(hostB, 0.f, sizeB);
+    memset(hostC, 0.f, sizeC);
     // assign matrix
     int i, j;
     for (i = 0; i < hA; ++i) {
@@ -155,13 +159,23 @@ int main(int argc, char** argv) {
             hostB[index] = 2;rand();
         }
     }
+#endif
     clGetPlatformIDs(1, &platform, NULL);
+#ifdef CPU
+    clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 1, &device, NULL);
+#else
     clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, NULL);
+#endif
     cl_ulong size;
     clGetDeviceInfo(device, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(cl_ulong), &size, 0);
     printf("CL_DEVICE_LOCAL_MEM_SIZE : %lld\n", (long long)size);
     context = clCreateContext(0, 1, &device, NULL, NULL, NULL);
     command_queue = clCreateCommandQueue(context, device, 0, NULL);
+#ifdef CPU
+    bufferA = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, sizeA, NULL, NULL);
+    bufferB = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, sizeB, NULL, NULL);
+    bufferC = clCreateBuffer(context, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR, sizeC, NULL, NULL);
+#else
     size_t bufferSizeA = MIN(sizeA, MAX_BUFFER_SIZE);
     size_t bufferSizeB = MIN(sizeB, MAX_BUFFER_SIZE);
     size_t bufferSizeC = MIN(sizeC, MAX_BUFFER_SIZE);
@@ -171,6 +185,7 @@ int main(int argc, char** argv) {
     float* tileHostA = (float*)malloc(bufferSizeA);
     float* tileHostB = (float*)malloc(bufferSizeB);
     float* tileHostC = (float*)malloc(bufferSizeC);
+#endif
     FILE* fp;
     const char fileName[] = "./kernel.cl";
     size_t source_size;
@@ -187,6 +202,13 @@ int main(int argc, char** argv) {
     printf("%s\n", source_str);
     clBuildProgram(program, 1, &device, NULL, NULL, NULL);
     kernel = clCreateKernel(program, "matrixmul", NULL);
+#ifdef CPU
+    clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&bufferC);
+    clSetKernelArg(kernel, 1, sizeof(cl_mem), (void*)&bufferA);
+    clSetKernelArg(kernel, 2, sizeof(cl_mem), (void*)&bufferB);
+    clSetKernelArg(kernel, 3, sizeof(cl_int), (void*)&wA);
+    clSetKernelArg(kernel, 4, sizeof(cl_int), (void*)&wB);
+#else
     int tileWidthA = MIN(wA, TILE_LEN);
     int tileWidthB = MIN(wB, TILE_LEN);
     int tileWidthC = MIN(wC, TILE_LEN);
@@ -196,7 +218,35 @@ int main(int argc, char** argv) {
     clSetKernelArg(kernel, 2, sizeof(cl_mem), (void*)&bufferB);
     clSetKernelArg(kernel, 3, sizeof(cl_int), (void*)&tileWidthA);
     clSetKernelArg(kernel, 4, sizeof(cl_int), (void*)&tileWidthB);
+#endif
     timer_start(1);
+#ifdef CPU
+    hostA = clEnqueueMapBuffer(command_queue, bufferA, CL_TRUE, CL_MAP_READ, 0, sizeA, 0, NULL, NULL, NULL);
+    hostB = clEnqueueMapBuffer(command_queue, bufferB, CL_TRUE, CL_MAP_READ, 0, sizeB, 0, NULL, NULL, NULL);
+    hostC = clEnqueueMapBuffer(command_queue, bufferC, CL_TRUE, CL_MAP_WRITE, 0, sizeC, 0, NULL, NULL, NULL);
+    memset(hostA, 0.f, sizeA);
+    memset(hostB, 0.f, sizeB);
+    memset(hostC, 0.f, sizeC);
+    // assign matrix
+    int i, j;
+    for (i = 0; i < hA; ++i) {
+        size_t rowIndex = (size_t)wA * i;
+        for (j = 0; j < wA; ++j) {
+            size_t index = rowIndex + j;
+            hostA[index] = 1;//rand();
+        }
+    }
+    for (i = 0; i < hB; ++i) {
+        size_t rowIndex = (size_t)wB * i;
+        for (j = 0; j < wB; ++j) {
+            size_t index = rowIndex + j;
+            hostB[index] = 2;rand();
+        }
+    }
+    size_t global[2] = {wC, hC};
+    // launch the kernel
+    clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global, NULL, 0, NULL, NULL);
+#else
     int ii, jj, kk;
     for (ii = 0; ii < size_i; ii += TILE_LEN) {
         int iiPB = MIN(ii + TILE_LEN, size_i);
@@ -234,6 +284,7 @@ int main(int argc, char** argv) {
             }
         }
     }
+#endif
     clFinish(command_queue);
     timer_stop(1);
     for (i = 0; i < 100; ++i) {
@@ -258,9 +309,11 @@ int main(int argc, char** argv) {
         print_mat(hostC, wC, hC);
     }
 
+#ifndef CPU
     free(tileHostC);
     free(tileHostB);
     free(tileHostA);
+#endif
     free(hostC);
     free(hostB);
     free(hostA);
