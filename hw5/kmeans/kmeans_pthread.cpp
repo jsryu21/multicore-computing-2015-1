@@ -135,7 +135,7 @@ void* UpdateWork(void* threadarg) {
     pthread_exit(static_cast< void* >(my_data));
 }
 
-void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* data, int* partitioned, int num_threads)
+void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* data, int* partitioned, int num_threads, int local_size)
 {
     // Count number of data in each class
     std::vector< int > count(class_n);

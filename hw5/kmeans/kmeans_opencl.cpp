@@ -6,7 +6,7 @@
 
 static const int MAX_SOURCE_SIZE = 0x100000;
 
-void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* data, int* partitioned, int num_threads)
+void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* data, int* partitioned, int num_threads, int local_size)
 {
     // Count number of data in each class
     std::vector< int > count(class_n);
@@ -60,7 +60,6 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
     source_str = (char*)malloc(MAX_SOURCE_SIZE);
     source_size = fread(source_str, 1, MAX_SOURCE_SIZE, fp);
     fclose(fp);
-    printf("%s\n", source_str);
     program = clCreateProgramWithSource(context, 1, (const char**)&source_str, &source_size, NULL);
     clBuildProgram(program, 1, &device, NULL, NULL, NULL);
     kernel = clCreateKernel(program, "dispose_data", NULL);
@@ -99,8 +98,9 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
 #endif
         // Iterate through number of interations
         size_t global = num_threads;
+        size_t local = local_size;
         // launch the kernel
-        clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global, NULL, 0, NULL, NULL);
+        clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global, &local, 0, NULL, NULL);
         clFinish(command_queue);
         std::fill(centroids, centroids + class_n, Point(0.f, 0.f));
         std::fill(count.begin(), count.end(), 0);
