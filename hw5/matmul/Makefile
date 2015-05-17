@@ -15,13 +15,13 @@ mat_mul_gpu:mat_mul_gpu.o timers.o
 mat_mul_cpu:mat_mul_cpu.o timers.o
 	$(CC) $(LDFLAGS) mat_mul_cpu.o timers.o -o $@ -lm -lOpenCL
 
-mat_mul_gpu.o:
+mat_mul_gpu.o: mat_mul.c
 	$(CC) $(CFLAGS) -c -o mat_mul_gpu.o mat_mul.c
 
-mat_mul_cpu.o:
+mat_mul_cpu.o: mat_mul.c
 	$(CC) $(CFLAGS) -DCPU -c -o mat_mul_cpu.o mat_mul.c
 
-timers.o:
+timers.o: timers.c
 	$(CC) $(CFLAGS) -c -o timers.o timers.c
 
 clean:
