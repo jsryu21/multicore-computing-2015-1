@@ -35,10 +35,10 @@ pthread:
 	thorq --add kmeans_pthread centroid.point data.point result_pthread.class final_centroid_pthread.point 1024
 
 gpu:
-	thorq --add --device gpu kmeans_opencl_gpu centroid.point data.point result_opencl_gpu.class final_centroid_opencl_gpu.point 1024 $(g) $(l)
+	thorq --add --device gpu kmeans_opencl_gpu centroid.point data.point result_opencl_gpu.class final_centroid_opencl_gpu.point 1024 2048 8
 
 cpu:
-	thorq --add --device cpu kmeans_opencl_cpu centroid.point data.point result_opencl_cpu.class final_centroid_opencl_cpu.point 1024 $(g) $(l)
+	thorq --add --device cpu kmeans_opencl_cpu centroid.point data.point result_opencl_cpu.class final_centroid_opencl_cpu.point 1024 256
 
 testcase:
 	./gen_data.py centroid 16 centroid.point
