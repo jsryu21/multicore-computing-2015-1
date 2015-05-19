@@ -1,0 +1,11 @@
+mpirun: killing job...
+
+--------------------------------------------------------------------------
+WARNING: A process refused to die!
+
+Host: c33
+PID:  7200
+
+This process may still be running and/or consuming resources.
+
+--------------------------------------------------------------------------

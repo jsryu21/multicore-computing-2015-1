@@ -1,0 +1,11 @@
+mpirun: killing job...
+
+--------------------------------------------------------------------------
+WARNING: A process refused to die!
+
+Host: c26
+PID:  16747
+
+This process may still be running and/or consuming resources.
+
+--------------------------------------------------------------------------

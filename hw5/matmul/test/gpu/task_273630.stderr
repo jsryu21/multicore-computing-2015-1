@@ -1,0 +1,11 @@
+mpirun: abort is already in progress...hit ctrl-c again to forcibly terminate
+
+--------------------------------------------------------------------------
+WARNING: A process refused to die!
+
+Host: c20
+PID:  5885
+
+This process may still be running and/or consuming resources.
+
+--------------------------------------------------------------------------
