@@ -312,11 +312,13 @@ int main(int argc, char** argv) {
 #endif
     clFinish(command_queue);
     timer_stop(1);
+    /*
     int r_i;
     for (r_i = 0; r_i < 100; ++r_i) {
         size_t r = rand() % ((size_t)wC * hC);
         printf("C[%zu] : %lld\n", r, (long long)hostC[r]);
     }
+    */
 
     printf("Time elapsed : %lf sec\n", timer_read(1));
 
