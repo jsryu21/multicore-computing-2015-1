@@ -15,14 +15,15 @@
 #define SIZE_K 10000
 #define PRECISION 0.00001
 #define MAX_SOURCE_SIZE (0x100000)
-#define TILE_LEN 5000
-#define MAX_BUFFER_SIZE ((size_t)((size_t)TILE_LEN * TILE_LEN * sizeof(float)))
+#define TILE_LEN 10000
 
 bool print_matrix = false;
 bool validation = false;
 int size_i;
 int size_j;
 int size_k;
+int global_size= -1;
+int local_size= -1;
 
 void check_mat_mul(float* matrixC, float* matrixA, float* matrixB, int size_i, int size_j, int size_k) {
     int i, j, k;
@@ -80,7 +81,7 @@ void print_help(const char* prog_name) {
 
 void parse_opt(int argc, char** argv) {
     int opt;
-    while ((opt = getopt(argc, argv, "pvhi:j:k:")) != -1 ) {
+    while ((opt = getopt(argc, argv, "pvhi:j:k:g:l:")) != -1 ) {
         switch(opt) {
             case 'p':
                 // print matrix data.
@@ -99,6 +100,12 @@ void parse_opt(int argc, char** argv) {
                 break;
             case 'k':
                 size_k = atoi(optarg);
+                break;
+            case 'g':
+                global_size= atoi(optarg);
+                break;
+            case 'l':
+                local_size = atoi(optarg);
                 break;
             case 'h':
             default:
@@ -136,39 +143,12 @@ int main(int argc, char** argv) {
     sizeA = (size_t)hA * wA * sizeof(float);
     sizeB = (size_t)hB * wB * sizeof(float);
     sizeC = (size_t)hC * wC * sizeof(float);
-#ifndef CPU
-    hostA = (float*)malloc(sizeA);
-    hostB = (float*)malloc(sizeB);
-    hostC = (float*)malloc(sizeC);
-    memset(hostA, 0.f, sizeA);
-    memset(hostB, 0.f, sizeB);
-    memset(hostC, 0.f, sizeC);
-    // assign matrix
-    int i, j;
-    for (i = 0; i < hA; ++i) {
-        size_t rowIndex = (size_t)wA * i;
-        for (j = 0; j < wA; ++j) {
-            size_t index = rowIndex + j;
-            hostA[index] = 1;//rand();
-        }
-    }
-    for (i = 0; i < hB; ++i) {
-        size_t rowIndex = (size_t)wB * i;
-        for (j = 0; j < wB; ++j) {
-            size_t index = rowIndex + j;
-            hostB[index] = 2;rand();
-        }
-    }
-#endif
     clGetPlatformIDs(1, &platform, NULL);
 #ifdef CPU
     clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 1, &device, NULL);
 #else
     clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, NULL);
 #endif
-    cl_ulong size;
-    clGetDeviceInfo(device, CL_DEVICE_LOCAL_MEM_SIZE, sizeof(cl_ulong), &size, 0);
-    printf("CL_DEVICE_LOCAL_MEM_SIZE : %lld\n", (long long)size);
     context = clCreateContext(0, 1, &device, NULL, NULL, NULL);
     command_queue = clCreateCommandQueue(context, device, 0, NULL);
 #ifdef CPU
@@ -176,9 +156,31 @@ int main(int argc, char** argv) {
     bufferB = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, sizeB, NULL, NULL);
     bufferC = clCreateBuffer(context, CL_MEM_WRITE_ONLY | CL_MEM_ALLOC_HOST_PTR, sizeC, NULL, NULL);
 #else
-    size_t bufferSizeA = MIN(sizeA, MAX_BUFFER_SIZE);
-    size_t bufferSizeB = MIN(sizeB, MAX_BUFFER_SIZE);
-    size_t bufferSizeC = MIN(sizeC, MAX_BUFFER_SIZE);
+    hostA = (float*)malloc(sizeA);
+    hostB = (float*)malloc(sizeB);
+    hostC = (float*)malloc(sizeC);
+    int i, j;
+    for (i = 0; i < hA; ++i) {
+        for (j = 0; j < wA; ++j) {
+            hostA[i * wA + j] = 1.f;
+        }
+    }
+    for (i = 0; i < hB; ++i) {
+        for (j = 0; j < wB; ++j) {
+            hostB[i * wB + j] = 2.f;
+        }
+    }
+    memset(hostC, 0, sizeC);
+    int tileWidthA = MIN(wA, TILE_LEN);
+    int tileWidthB = MIN(wB, TILE_LEN);
+    int tileWidthC = MIN(wC, TILE_LEN);
+    int tileHeightC = MIN(hC, TILE_LEN);
+    size_t tileSizeA = (size_t)tileHeightC * tileWidthA * sizeof(float);
+    size_t tileSizeB = (size_t)tileWidthA * tileWidthB * sizeof(float);
+    size_t tileSizeC = (size_t)tileHeightC * tileWidthC * sizeof(float);
+    size_t bufferSizeA = MIN(sizeA, tileSizeA);
+    size_t bufferSizeB = MIN(sizeB, tileSizeB);
+    size_t bufferSizeC = MIN(sizeC, tileSizeC);
     bufferA = clCreateBuffer(context, CL_MEM_READ_ONLY, bufferSizeA, NULL, NULL);
     bufferB = clCreateBuffer(context, CL_MEM_READ_ONLY, bufferSizeB, NULL, NULL);
     bufferC = clCreateBuffer(context, CL_MEM_WRITE_ONLY, bufferSizeC, NULL, NULL);
@@ -199,7 +201,7 @@ int main(int argc, char** argv) {
     source_size = fread(source_str, 1, MAX_SOURCE_SIZE, fp);
     fclose(fp);
     program = clCreateProgramWithSource(context, 1, (const char**)&source_str, &source_size, NULL);
-    printf("%s\n", source_str);
+    //printf("%s\n", source_str);
     clBuildProgram(program, 1, &device, NULL, NULL, NULL);
     kernel = clCreateKernel(program, "matrixmul", NULL);
 #ifdef CPU
@@ -209,10 +211,6 @@ int main(int argc, char** argv) {
     clSetKernelArg(kernel, 3, sizeof(cl_int), (void*)&wA);
     clSetKernelArg(kernel, 4, sizeof(cl_int), (void*)&wB);
 #else
-    int tileWidthA = MIN(wA, TILE_LEN);
-    int tileWidthB = MIN(wB, TILE_LEN);
-    int tileWidthC = MIN(wC, TILE_LEN);
-    int tileHeightC = MIN(hC, TILE_LEN);
     clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&bufferC);
     clSetKernelArg(kernel, 1, sizeof(cl_mem), (void*)&bufferA);
     clSetKernelArg(kernel, 2, sizeof(cl_mem), (void*)&bufferB);
@@ -224,28 +222,38 @@ int main(int argc, char** argv) {
     hostA = clEnqueueMapBuffer(command_queue, bufferA, CL_TRUE, CL_MAP_READ, 0, sizeA, 0, NULL, NULL, NULL);
     hostB = clEnqueueMapBuffer(command_queue, bufferB, CL_TRUE, CL_MAP_READ, 0, sizeB, 0, NULL, NULL, NULL);
     hostC = clEnqueueMapBuffer(command_queue, bufferC, CL_TRUE, CL_MAP_WRITE, 0, sizeC, 0, NULL, NULL, NULL);
-    memset(hostA, 0.f, sizeA);
-    memset(hostB, 0.f, sizeB);
-    memset(hostC, 0.f, sizeC);
-    // assign matrix
     int i, j;
     for (i = 0; i < hA; ++i) {
-        size_t rowIndex = (size_t)wA * i;
         for (j = 0; j < wA; ++j) {
-            size_t index = rowIndex + j;
-            hostA[index] = 1;//rand();
+            hostA[i * wA + j] = 1.f;
         }
     }
     for (i = 0; i < hB; ++i) {
-        size_t rowIndex = (size_t)wB * i;
         for (j = 0; j < wB; ++j) {
-            size_t index = rowIndex + j;
-            hostB[index] = 2;rand();
+            hostB[i * wB + j] = 2.f;
         }
     }
+    memset(hostC, 0, sizeC);
     size_t global[2] = {wC, hC};
-    // launch the kernel
-    clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global, NULL, 0, NULL, NULL);
+    if (global_size != -1) {
+        if (global[0] > global_size) {
+            global[0] = global_size;
+        }
+        if (global[1] > global_size) {
+            global[1] = global_size;
+        }
+    }
+    clSetKernelArg(kernel, 5, sizeof(cl_int), (void*)&wC);
+    clSetKernelArg(kernel, 6, sizeof(cl_int), (void*)&hC);
+    clSetKernelArg(kernel, 7, sizeof(cl_int), (void*)&global[0]);
+    clSetKernelArg(kernel, 8, sizeof(cl_int), (void*)&global[1]);
+    if (local_size != -1) {
+        size_t local[2] = {local_size, local_size};
+        clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global, local, 0, NULL, NULL);
+    } else {
+        // launch the kernel
+        clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global, NULL, 0, NULL, NULL);
+    }
 #else
     int ii, jj, kk;
     for (ii = 0; ii < size_i; ii += TILE_LEN) {
@@ -257,9 +265,9 @@ int main(int argc, char** argv) {
             for (kk = 0; kk < size_k; kk += TILE_LEN) {
                 int kkPB = MIN(kk + TILE_LEN, size_k);
                 int diffK = kkPB - kk;
-                memset(tileHostA, 0.f, bufferSizeA);
-                memset(tileHostB, 0.f, bufferSizeB);
-                memset(tileHostC, 0.f, bufferSizeC);
+                memset(tileHostA, 0, bufferSizeA);
+                memset(tileHostB, 0, bufferSizeB);
+                memset(tileHostC, 0, bufferSizeC);
                 int p;
                 for (p = 0; p < diffI; ++p) {
                     memcpy(&tileHostA[p * tileWidthA], &hostA[(ii + p) * wA + kk], diffK * sizeof(float));
@@ -271,8 +279,25 @@ int main(int argc, char** argv) {
                 clEnqueueWriteBuffer(command_queue, bufferA, CL_FALSE, 0, bufferSizeA, tileHostA, 0, NULL, NULL);
                 clEnqueueWriteBuffer(command_queue, bufferB, CL_FALSE, 0, bufferSizeB, tileHostB, 0, NULL, NULL);
                 size_t global[2] = {tileWidthC, tileHeightC};
-                // launch the kernel
-                clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global, NULL, 0, NULL, NULL);
+                if (global_size != -1) {
+                    if (global[0] > global_size) {
+                        global[0] = global_size;
+                    }
+                    if (global[1] > global_size) {
+                        global[1] = global_size;
+                    }
+                }
+                clSetKernelArg(kernel, 5, sizeof(cl_int), (void*)&tileWidthC);
+                clSetKernelArg(kernel, 6, sizeof(cl_int), (void*)&tileHeightC);
+                clSetKernelArg(kernel, 7, sizeof(cl_int), (void*)&global[0]);
+                clSetKernelArg(kernel, 8, sizeof(cl_int), (void*)&global[1]);
+                if (local_size != -1) {
+                    size_t local[2] = {local_size, local_size};
+                    clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global, local, 0, NULL, NULL);
+                } else {
+                    // launch the kernel
+                    clEnqueueNDRangeKernel(command_queue, kernel, 2, NULL, global, NULL, 0, NULL, NULL);
+                }
                 clEnqueueReadBuffer(command_queue, bufferC, CL_TRUE, 0, bufferSizeC, tileHostC, 0, NULL, NULL);
                 int q, r;
                 for (q = 0; q < diffI; ++q) {
@@ -287,7 +312,8 @@ int main(int argc, char** argv) {
 #endif
     clFinish(command_queue);
     timer_stop(1);
-    for (i = 0; i < 100; ++i) {
+    int r_i;
+    for (r_i = 0; r_i < 100; ++r_i) {
         size_t r = rand() % ((size_t)wC * hC);
         printf("C[%zu] : %lld\n", r, (long long)hostC[r]);
     }

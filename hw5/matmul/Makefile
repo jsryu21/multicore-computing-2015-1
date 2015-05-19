@@ -3,6 +3,8 @@ OBJS=mat_mul_gpu.o mat_mul_cpu.o timers.o
 i=10000
 j=10000
 k=10000
+g=2
+l=1
 
 CC=gcc
 CFLAGS=-g -O2 -Wall
@@ -28,11 +30,11 @@ clean:
 	rm -rf $(TARGET) $(OBJS) task*
 
 gpu: mat_mul_gpu
-	thorq --add --device gpu ./mat_mul_gpu -i $(i) -j $(j) -k $(k)
+	thorq --add --device gpu ./mat_mul_gpu -i $(i) -j $(j) -k $(k) -g $(g) -l $(l)
 
 cpu: mat_mul_cpu
-	thorq --add --device cpu ./mat_mul_cpu -i $(i) -j $(j) -k $(k)
+	thorq --add --device cpu ./mat_mul_cpu -i $(i) -j $(j) -k $(k) -g $(g) -l $(l)
 
 run: $(TARGET)
-	thorq --add --device gpu ./mat_mul_gpu -i $(i) -j $(j) -k $(k)
-	thorq --add --device cpu ./mat_mul_cpu -i $(i) -j $(j) -k $(k)
+	thorq --add --device gpu ./mat_mul_gpu -i $(i) -j $(j) -k $(k) -g $(g) -l $(l)
+	thorq --add --device cpu ./mat_mul_cpu -i $(i) -j $(j) -k $(k) -g $(g) -l $(l)
