@@ -1,4 +1,0 @@
-make run : pthread kmeans
-make run_seq : sequential kmeans
-make run_all : both pthread and sequential kmeans
-./img.sh : convert data files to image files

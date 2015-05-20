@@ -4,6 +4,7 @@
 #define __KMEANS_H__
 
 struct Point {
+    Point() {}
     Point(float x_, float y_) : x(x_), y(y_) {
     }
     float x, y;

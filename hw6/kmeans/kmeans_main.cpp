@@ -30,7 +30,7 @@ int main(int argc, char** argv)
 
     // Check parameters
     if (argc < 4) {
-        fprintf(stderr, "usage: %s <centroid file> <data file> <paritioned result> [<final centroids>] [<iteration number>]\n", argv[0]);
+        fprintf(stderr, "usage: %s <centroid file> <data file> <paritioned result> [<final centroids>] [<iteration number>] [<thread number>] [<local work size>]\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
