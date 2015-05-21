@@ -47,7 +47,7 @@ cpu:
 	thorq --add --device cpu kmeans_opencl_cpu centroid.point data.point result_opencl_cpu.class final_centroid_opencl_cpu.point 1024 256
 
 openmp:
-	thorq --add kmeans_openmp centroid.point data.point result_openmp.class final_centroid_openmp.point 1024
+	thorq --add kmeans_openmp centroid.point data.point result_openmp.class final_centroid_openmp.point 1024 16
 
 testcase:
 	./gen_data.py centroid 64 centroid.point
