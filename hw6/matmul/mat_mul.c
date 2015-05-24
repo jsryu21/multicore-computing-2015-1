@@ -21,11 +21,11 @@ void mat_mul( float** c, float** a, float** b )
 {
     int i, j, k;
     omp_set_num_threads(NUM_THREADS);
+#pragma omp parallel for
     for( i = 0; i < NDIM; i++ )
     {
         for( j = 0; j < NDIM; j++ )
         {
-#pragma omp parallel for
             for( k = 0; k < NDIM; k++ )
             {
                 c[i][j] += a[i][k] * b[k][j];
