@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include "timers.h"
+#include <omp.h>
 
 int NDIM = 2048;
 #define MIN(a,b) (((a)<(b))?(a):(b))
@@ -19,11 +20,12 @@ int validation = 0;
 void mat_mul( float** c, float** a, float** b )
 {
     int i, j, k;
-#pragma omp parallel for
+    omp_set_num_threads(NUM_THREADS);
     for( i = 0; i < NDIM; i++ )
     {
         for( j = 0; j < NDIM; j++ )
         {
+#pragma omp parallel for
             for( k = 0; k < NDIM; k++ )
             {
                 c[i][j] += a[i][k] * b[k][j];
@@ -131,7 +133,7 @@ void parse_opt(int argc, char** argv)
 
 int main(int argc, char** argv)
 {
-    int i, j, k = 1;
+    int i, j;
 
     parse_opt( argc, argv );
     a = (float**)malloc(NDIM * sizeof(float*));
@@ -142,18 +144,28 @@ int main(int argc, char** argv)
     for (i = 0; i < NDIM; ++i) {
         b[i] = (float*)malloc(NDIM * sizeof(float));
     }
-    c = (float**)malloc(NDIM * sizeof(float*));
+    c = (float**)calloc(NDIM, sizeof(float*));
     for (i = 0; i < NDIM; ++i) {
-        c[i] = (float*)malloc(NDIM * sizeof(float));
+        c[i] = (float*)calloc(NDIM, sizeof(float));
     }
 
-    for( i = 0; i < NDIM; i++ )
+#pragma omp parallel
     {
-        for( j = 0; j < NDIM; j++ )
+#pragma omp for nowait private(j)
+        for( i = 0; i < NDIM; i++ )
         {
-            a[i][j] = k;
-            b[i][j] = k;
-            k++;
+            for( j = 0; j < NDIM; j++ )
+            {
+                a[i][j] = i * j;
+            }
+        }
+#pragma omp for private(j)
+        for( i = 0; i < NDIM; i++ )
+        {
+            for( j = 0; j < NDIM; j++ )
+            {
+                b[i][j] = i * j;
+            }
         }
     }
 
