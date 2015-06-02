@@ -38,7 +38,7 @@ kmeans_openmp.o: openmp.cpp
 kmeans_mpi.o: mpi.cpp
 	mpic++ -lstdc++ ${CXXFLAGS} -o kmeans_mpi.o -c mpi.cpp
 
-run: seq pthread gpu cpu openmp
+run: seq pthread gpu cpu openmp mpi
 
 seq:
 	thorq --add kmeans_seq centroid.point data.point result_seq.class final_centroid_seq.point 1024
@@ -63,4 +63,4 @@ testcase:
 	./gen_data.py data 262144 data.point 64
 
 clean:
-	rm -f kmeans_seq kmeans_pthread kmeans_opencl_gpu kmeans_opencl_cpu kmeans_openmp kmeans_*.o final_centroid_*.point result_*.class task_* *.png
+	rm -f kmeans_seq kmeans_pthread kmeans_opencl_gpu kmeans_opencl_cpu kmeans_openmp kmeans_mpi kmeans_*.o final_centroid_*.point result_*.class task_* *.png
