@@ -55,6 +55,9 @@ cpu:
 openmp:
 	thorq --add kmeans_openmp centroid.point data.point result_openmp.class final_centroid_openmp.point 1024 16
 
+mpi:
+	thorq --add --mode mpi --node 2 --slots 4 kmeans_mpi centroid.point data.point result_mpi.class final_centroid_mpi.point 1024
+
 testcase:
 	./gen_data.py centroid 64 centroid.point
 	./gen_data.py data 262144 data.point 64

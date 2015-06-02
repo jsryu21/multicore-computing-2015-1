@@ -61,27 +61,28 @@ int main(int argc, char** argv)
 
     clock_gettime(CLOCK_MONOTONIC, &start);
     // Run Kmeans algorithm
-    kmeans(iteration_n, class_n, data_n, (Point*)centroids, (Point*)data, partitioned, num_threads, local_size, argc, argv);
+    int ret = kmeans(iteration_n, class_n, data_n, (Point*)centroids, (Point*)data, partitioned, num_threads, local_size, argc, argv);
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     timespec_subtract(&spent, &end, &start);
     printf("Time spent: %ld.%09ld\n", spent.tv_sec, spent.tv_nsec);
 
-    // Write classified result
-    io_file = fopen(argv[3], "wb");
-    fwrite(&data_n, sizeof(data_n), 1, io_file);
-    fwrite(partitioned, sizeof(int), data_n, io_file); 
-    fclose(io_file);
-
-
-    // Write final centroid data
-    if (argc > 4) {
-        io_file = fopen(argv[4], "wb");
-        fwrite(&class_n, sizeof(class_n), 1, io_file);
-        fwrite(centroids, sizeof(Point), class_n, io_file); 
+    if (ret == 0) {
+        // Write classified result
+        io_file = fopen(argv[3], "wb");
+        fwrite(&data_n, sizeof(data_n), 1, io_file);
+        fwrite(partitioned, sizeof(int), data_n, io_file);
         fclose(io_file);
-    }
 
+
+        // Write final centroid data
+        if (argc > 4) {
+            io_file = fopen(argv[4], "wb");
+            fwrite(&class_n, sizeof(class_n), 1, io_file);
+            fwrite(centroids, sizeof(Point), class_n, io_file);
+            fclose(io_file);
+        }
+    }
 
     // Free allocated buffers
     free(centroids);

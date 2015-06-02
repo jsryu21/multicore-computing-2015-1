@@ -5,7 +5,7 @@
 #include <iostream>
 #include <cstring>
 
-void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* data, int* partitioned, int num_threads, int local_size, int argc, char** argv)
+int kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* data, int* partitioned, int num_threads, int local_size, int argc, char** argv)
 {
     // Count number of data in each class
     int* count = new int[class_n];
@@ -65,4 +65,5 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
     delete[] tempCount;
     delete[] tempCentroids;
     delete[] count;
+    return 0;
 }

@@ -12,7 +12,7 @@ struct Point {
 
 
 // Kmean algorighm
-void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* data, int* clsfy_result, int num_threads, int local_size, int argc, char** argv);
+int kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* data, int* clsfy_result, int num_threads, int local_size, int argc, char** argv);
 
 #endif // __KMEANS_H__
 

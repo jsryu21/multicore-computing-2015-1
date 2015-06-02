@@ -15,3 +15,6 @@ fi
 if [ -f ./final_centroid_openmp.point ]; then
     ./plot_data.py result final_centroid_openmp.point data.point result_openmp.class result_openmp.png
 fi
+if [ -f ./final_centroid_mpi.point ]; then
+    ./plot_data.py result final_centroid_mpi.point data.point result_mpi.class result_mpi.png
+fi

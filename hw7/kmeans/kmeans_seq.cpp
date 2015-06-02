@@ -5,7 +5,7 @@
 #include <float.h>
 
 
-void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* data, int* partitioned, int num_threads, int local_size, int argc, char** argv)
+int kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* data, int* partitioned, int num_threads, int local_size, int argc, char** argv)
 {
     // Loop indices for iteration, data and class
     int i, data_i, class_i;
@@ -56,5 +56,6 @@ void kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* d
             centroids[class_i].y /= count[class_i];
         }
     }
+    return 0;
 }
 
