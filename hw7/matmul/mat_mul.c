@@ -23,7 +23,7 @@ int FROM_WORKER = 2;
 int mat_mul( float** c, float** a, float** b, int argc, char** argv )
 {
     int numtasks, taskid;
-    int gap, task_i, from, to, row_i;
+    int gap, remain, task_i, from, to, row_i;
     int i, j, r;
 
     MPI_Init(&argc, &argv);
@@ -43,10 +43,17 @@ int mat_mul( float** c, float** a, float** b, int argc, char** argv )
         }
 
         // Scatter matrix a
-        gap = (int)ceil((float)NDIM / (numtasks - 1));
+        gap = NDIM / (numtasks - 1);
+        remain = NDIM - gap * (numtasks - 1);
+        from = 0;
+        to = 0;
         for (task_i = 1; task_i < numtasks; ++task_i) {
-            from = gap * (task_i - 1);
-            to = MIN(from + gap, NDIM);
+            from = to;
+            to = from + gap;
+            if (remain > 0) {
+                to++;
+                remain--;
+            }
             for (row_i = from; row_i < to; ++row_i) {
                 MPI_Send(a[row_i], NDIM, MPI_FLOAT, task_i, row_i, MPI_COMM_WORLD);
             }
@@ -65,6 +72,8 @@ int mat_mul( float** c, float** a, float** b, int argc, char** argv )
 
         free(temp_c);
     } else {
+        float* temp_a = (float*)malloc(NDIM * sizeof(float));
+
         // Initialize matrix a, b
         for (i = 0; i < NDIM; ++i) {
             memset(a[i], 0, NDIM * sizeof(float));
@@ -72,11 +81,24 @@ int mat_mul( float** c, float** a, float** b, int argc, char** argv )
         }
 
         // Receive scattered matrix a
-        gap = (int)ceil((float)NDIM / (numtasks - 1));
-        from = gap * (taskid - 1);
-        to = MIN(from + gap, NDIM);
+        gap = NDIM / (numtasks - 1);
+        remain = NDIM - gap * (numtasks - 1);
+        from = 0;
+        to = 0;
+        for (task_i = 1; task_i < numtasks; ++task_i) {
+            from = to;
+            to = from + gap;
+            if (remain > 0) {
+                to++;
+                remain--;
+            }
+            if (task_i == taskid) {
+                break;
+            }
+        }
         for (row_i = from; row_i < to; ++row_i) {
-            MPI_Recv(a[row_i], NDIM, MPI_FLOAT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+            MPI_Recv(temp_a, NDIM, MPI_FLOAT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+            memcpy(a[status.MPI_TAG], temp_a, NDIM * sizeof(float));
         }
 
         // Receive broadcasted matrix b
@@ -88,7 +110,7 @@ int mat_mul( float** c, float** a, float** b, int argc, char** argv )
             for (row_i = from; row_i < to; ++row_i) {
                 r = a[row_i][j];
                 for (i = 0; i < NDIM; ++i) {
-                    c[row_i][j] += r * b[j][i];
+                    c[row_i][i] += r * b[j][i];
                 }
             }
         }
@@ -97,6 +119,8 @@ int mat_mul( float** c, float** a, float** b, int argc, char** argv )
         for (row_i = from; row_i < to; ++row_i) {
             MPI_Send(c[row_i], NDIM, MPI_FLOAT, 0, row_i, MPI_COMM_WORLD);
         }
+
+        free(temp_a);
     }
 
     MPI_Finalize();
