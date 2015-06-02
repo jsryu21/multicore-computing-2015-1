@@ -114,10 +114,9 @@ int kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* da
     }
 
     if (myid == 0) {
-        int* temp = new int[data_n];
-        memcpy(temp, partitioned, data_n);
         int gap = data_n / numnodes;
         int remain = data_n - gap * numnodes;
+        remain--;
         for (int task_i = 1; task_i < numnodes; ++task_i) {
             from = to;
             to = from + gap;
@@ -125,13 +124,10 @@ int kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* da
                 to++;
                 remain--;
             }
-            MPI_Recv(&temp[from], to - from, MPI_INT, task_i, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+            MPI_Recv(&partitioned[from], to - from, MPI_INT, task_i, from, MPI_COMM_WORLD, &status);
         }
-        memcpy(partitioned, temp, data_n);
-        delete temp;
     } else {
         MPI_Send(&partitioned[from], to - from, MPI_INT, 0, from, MPI_COMM_WORLD);
-        //MPI_Gather(&partitioned[from], to - from, MPI_INT, NULL, to - from, MPI_INT, 0, MPI_COMM_WORLD);
     }
 
     delete[] tempCount;
