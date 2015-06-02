@@ -2,6 +2,7 @@
 #include "mpi.h"
 #include <cfloat>
 
+// http://math.nist.gov/mcsd/savg/auto/v3.00/automap_reduce.html
 void AddPoint(Point* lhs, Point* rhs, int* len, MPI_Datatype* dptr) {
     for (int i = 0; i < *len; ++i) {
         rhs->x += lhs->x;
@@ -73,10 +74,6 @@ int kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* da
         memset(tempCentroids, 0, class_n * sizeof(Point));
         memset(tempCount, 0, class_n * sizeof(int));
 
-        for (int class_i = 0; class_i < class_n; ++class_i) {
-            MPI_Bcast(&centroids[class_i], 1, mystruct, 0, MPI_COMM_WORLD);
-        }
-
         // Assignment step
         for (int data_i = from; data_i < to; ++data_i) {
             float min_dist = FLT_MAX;
@@ -105,16 +102,14 @@ int kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* da
         }
 
         for (int class_i = 0; class_i < class_n; ++class_i) {
-            MPI_Reduce(&tempCentroids[class_i], &centroids[class_i], 1, mystruct, myOp, 0, MPI_COMM_WORLD);
+            MPI_Allreduce(&tempCentroids[class_i], &centroids[class_i], 1, mystruct, myOp, MPI_COMM_WORLD);
         }
-        MPI_Reduce(tempCount, count, class_n, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+        MPI_Allreduce(tempCount, count, class_n, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
-        if (myid == 0) {
-            for (int class_i = 0; class_i < class_n; ++class_i) {
-                // Divide the sum with number of class for mean point
-                centroids[class_i].x /= count[class_i];
-                centroids[class_i].y /= count[class_i];
-            }
+        for (int class_i = 0; class_i < class_n; ++class_i) {
+            // Divide the sum with number of class for mean point
+            centroids[class_i].x /= count[class_i];
+            centroids[class_i].y /= count[class_i];
         }
     }
 
