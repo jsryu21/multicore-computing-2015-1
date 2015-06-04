@@ -1,8 +1,0 @@
-myid : 0, from : 0, to : 1048576
-myid : 1, from : 1048576, to : 2097152
-myid : 2, from : 2097152, to : 3145728
-myid : 3, from : 3145728, to : 4194304
-Time spent: 548.714091419
-Time spent: 548.713929056
-Time spent: 548.713722318
-Time spent: 548.716136529
