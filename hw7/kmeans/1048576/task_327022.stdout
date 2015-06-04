@@ -1,0 +1,64 @@
+myid : 0, from : 0, to : 32768
+myid : 1, from : 32768, to : 65536
+myid : 3, from : 98304, to : 131072
+myid : 4, from : 131072, to : 163840
+myid : 6, from : 196608, to : 229376
+myid : 2, from : 65536, to : 98304
+myid : 5, from : 163840, to : 196608
+myid : 30, from : 983040, to : 1015808
+myid : 16, from : 524288, to : 557056
+myid : 31, from : 1015808, to : 1048576
+myid : 17, from : 557056, to : 589824
+myid : 24, from : 786432, to : 819200
+myid : 18, from : 589824, to : 622592
+myid : 26, from : 851968, to : 884736
+myid : 19, from : 622592, to : 655360
+myid : 27, from : 884736, to : 917504
+myid : 20, from : 655360, to : 688128
+myid : 28, from : 917504, to : 950272
+myid : 21, from : 688128, to : 720896
+myid : 29, from : 950272, to : 983040
+myid : 23, from : 753664, to : 786432
+myid : 25, from : 819200, to : 851968
+myid : 7, from : 229376, to : 262144
+myid : 11, from : 360448, to : 393216
+myid : 12, from : 393216, to : 425984
+myid : 13, from : 425984, to : 458752
+myid : 14, from : 458752, to : 491520
+myid : 15, from : 491520, to : 524288
+myid : 8, from : 262144, to : 294912
+myid : 9, from : 294912, to : 327680
+myid : 10, from : 327680, to : 360448
+myid : 22, from : 720896, to : 753664
+Time spent: 21.562923191
+Time spent: 21.569177397
+Time spent: 21.575971676
+Time spent: 21.567262303
+Time spent: 21.562733657
+Time spent: 21.572385896
+Time spent: 21.556962114
+Time spent: 21.565821616
+Time spent: 21.574694729
+Time spent: 21.564767696
+Time spent: 21.563542742
+Time spent: 21.563818541
+Time spent: 21.563561969
+Time spent: 21.559362189
+Time spent: 21.561640133
+Time spent: 21.563330447
+Time spent: 21.559790410
+Time spent: 21.558943138
+Time spent: 21.562250607
+Time spent: 21.560815493
+Time spent: 21.560136720
+Time spent: 21.563100004
+Time spent: 21.561392700
+Time spent: 21.552976115
+Time spent: 21.557162755
+Time spent: 21.560975906
+Time spent: 21.556502881
+Time spent: 21.554988713
+Time spent: 21.555961667
+Time spent: 21.553525322
+Time spent: 21.559177156
+Time spent: 21.608988703

@@ -1,0 +1,64 @@
+myid : 8, from : 65536, to : 73728
+myid : 9, from : 73728, to : 81920
+myid : 10, from : 81920, to : 90112
+myid : 11, from : 90112, to : 98304
+myid : 12, from : 98304, to : 106496
+myid : 2, from : 16384, to : 24576
+myid : 3, from : 24576, to : 32768
+myid : 4, from : 32768, to : 40960
+myid : 5, from : 40960, to : 49152
+myid : 6, from : 49152, to : 57344
+myid : 0, from : 0, to : 8192
+myid : 7, from : 57344, to : 65536
+myid : 13, from : 106496, to : 114688
+myid : 14, from : 114688, to : 122880
+myid : 15, from : 122880, to : 131072
+myid : 16, from : 131072, to : 139264
+myid : 17, from : 139264, to : 147456
+myid : 18, from : 147456, to : 155648
+myid : 19, from : 155648, to : 163840
+myid : 20, from : 163840, to : 172032
+myid : 21, from : 172032, to : 180224
+myid : 22, from : 180224, to : 188416
+myid : 23, from : 188416, to : 196608
+myid : 24, from : 196608, to : 204800
+myid : 25, from : 204800, to : 212992
+myid : 26, from : 212992, to : 221184
+myid : 27, from : 221184, to : 229376
+myid : 28, from : 229376, to : 237568
+myid : 29, from : 237568, to : 245760
+myid : 30, from : 245760, to : 253952
+myid : 31, from : 253952, to : 262144
+myid : 1, from : 8192, to : 16384
+Time spent: 10.424541215
+Time spent: 10.413999909
+Time spent: 10.427191784
+Time spent: 10.410908771
+Time spent: 10.421593363
+Time spent: 10.417163274
+Time spent: 10.427929862
+Time spent: 10.421642708
+Time spent: 10.421936647
+Time spent: 10.422815142
+Time spent: 10.429323329
+Time spent: 10.417285056
+Time spent: 10.424172569
+Time spent: 10.422114931
+Time spent: 10.416146186
+Time spent: 10.418873445
+Time spent: 10.415101984
+Time spent: 10.426872726
+Time spent: 10.402575133
+Time spent: 10.417062277
+Time spent: 10.429831642
+Time spent: 10.421558970
+Time spent: 10.431733314
+Time spent: 10.406704467
+Time spent: 10.405132285
+Time spent: 10.407087665
+Time spent: 10.430239151
+Time spent: 10.421251577
+Time spent: 10.430717699
+Time spent: 10.427671761
+Time spent: 10.429440258
+Time spent: 10.451731521

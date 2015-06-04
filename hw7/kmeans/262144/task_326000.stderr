@@ -1,0 +1,9 @@
+Warning: Permanently added '[c13]:22554,[192.168.0.113]:22554' (RSA) to the list of known hosts.
+Warning: Permanently added '[c18]:22554,[192.168.0.118]:22554' (RSA) to the list of known hosts.
+Warning: Permanently added '[c19]:22554,[192.168.0.119]:22554' (RSA) to the list of known hosts.
+error: could not lock config file /home/mc14/.gitconfig: File exists
+error: could not lock config file /home/mc14/.gitconfig: File exists
+error: could not lock config file /home/mc14/.gitconfig: File exists
+error: could not lock config file /home/mc14/.gitconfig: File exists
+error: could not lock config file /home/mc14/.gitconfig: File exists
+error: could not lock config file /home/mc14/.gitconfig: File exists

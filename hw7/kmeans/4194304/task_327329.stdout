@@ -1,0 +1,16 @@
+myid : 6, from : 3145728, to : 3670016
+myid : 0, from : 0, to : 524288
+myid : 7, from : 3670016, to : 4194304
+myid : 2, from : 1048576, to : 1572864
+myid : 3, from : 1572864, to : 2097152
+myid : 5, from : 2621440, to : 3145728
+myid : 4, from : 2097152, to : 2621440
+myid : 1, from : 524288, to : 1048576
+Time spent: 300.654166075
+Time spent: 300.665221538
+Time spent: 300.655610657
+Time spent: 300.655935132
+Time spent: 300.667253710
+Time spent: 300.663265807
+Time spent: 300.663725754
+Time spent: 300.664296890

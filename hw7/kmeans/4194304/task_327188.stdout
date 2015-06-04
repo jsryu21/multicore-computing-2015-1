@@ -1,0 +1,5 @@
+myid : 0, from : 0, to : 1048576
+myid : 3, from : 3145728, to : 4194304
+myid : 1, from : 1048576, to : 2097152
+myid : 2, from : 2097152, to : 3145728
+Time spent: 533.448668948

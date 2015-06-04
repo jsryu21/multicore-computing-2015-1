@@ -1,0 +1,128 @@
+myid : 4, from : 4096, to : 5120
+myid : 5, from : 5120, to : 6144
+myid : 6, from : 6144, to : 7168
+myid : 7, from : 7168, to : 8192
+myid : 8, from : 8192, to : 9216
+myid : 9, from : 9216, to : 10240
+myid : 10, from : 10240, to : 11264
+myid : 11, from : 11264, to : 12288
+myid : 12, from : 12288, to : 13312
+myid : 13, from : 13312, to : 14336
+myid : 15, from : 15360, to : 16384
+myid : 0, from : 0, to : 1024
+myid : 1, from : 1024, to : 2048
+myid : 2, from : 2048, to : 3072
+myid : 3, from : 3072, to : 4096
+myid : 14, from : 14336, to : 15360
+myid : 42, from : 43008, to : 44032
+myid : 55, from : 56320, to : 57344
+myid : 43, from : 44032, to : 45056
+myid : 56, from : 57344, to : 58368
+myid : 44, from : 45056, to : 46080
+myid : 57, from : 58368, to : 59392
+myid : 45, from : 46080, to : 47104
+myid : 58, from : 59392, to : 60416
+myid : 46, from : 47104, to : 48128
+myid : 59, from : 60416, to : 61440
+myid : 47, from : 48128, to : 49152
+myid : 60, from : 61440, to : 62464
+myid : 32, from : 32768, to : 33792
+myid : 61, from : 62464, to : 63488
+myid : 33, from : 33792, to : 34816
+myid : 62, from : 63488, to : 64512
+myid : 34, from : 34816, to : 35840
+myid : 63, from : 64512, to : 65536
+myid : 35, from : 35840, to : 36864
+myid : 48, from : 49152, to : 50176
+myid : 49, from : 50176, to : 51200
+myid : 50, from : 51200, to : 52224
+myid : 36, from : 36864, to : 37888
+myid : 51, from : 52224, to : 53248
+myid : 37, from : 37888, to : 38912
+myid : 52, from : 53248, to : 54272
+myid : 38, from : 38912, to : 39936
+myid : 53, from : 54272, to : 55296
+myid : 39, from : 39936, to : 40960
+myid : 54, from : 55296, to : 56320
+myid : 31, from : 31744, to : 32768
+myid : 40, from : 40960, to : 41984
+myid : 41, from : 41984, to : 43008
+myid : 16, from : 16384, to : 17408
+myid : 17, from : 17408, to : 18432
+myid : 18, from : 18432, to : 19456
+myid : 19, from : 19456, to : 20480
+myid : 20, from : 20480, to : 21504
+myid : 21, from : 21504, to : 22528
+myid : 22, from : 22528, to : 23552
+myid : 23, from : 23552, to : 24576
+myid : 24, from : 24576, to : 25600
+myid : 25, from : 25600, to : 26624
+myid : 26, from : 26624, to : 27648
+myid : 28, from : 28672, to : 29696
+myid : 29, from : 29696, to : 30720
+myid : 30, from : 30720, to : 31744
+myid : 27, from : 27648, to : 28672
+Time spent: 2.868704530
+Time spent: 2.877961686
+Time spent: 2.871066785
+Time spent: 2.858670143
+Time spent: 2.860694327
+Time spent: 2.877398578
+Time spent: 2.865245470
+Time spent: 2.867500530
+Time spent: 2.873754591
+Time spent: 2.862778019
+Time spent: 2.870529499
+Time spent: 2.880948030
+Time spent: 2.864388534
+Time spent: 2.876059505
+Time spent: 2.872410842
+Time spent: 2.881013003
+Time spent: 2.876147383
+Time spent: 2.828990341
+Time spent: 2.873995871
+Time spent: 2.878227567
+Time spent: 2.852163948
+Time spent: 2.826970851
+Time spent: 2.881170230
+Time spent: 2.842804186
+Time spent: 2.831615943
+Time spent: 2.851450960
+Time spent: 2.851878654
+Time spent: 2.831495120
+Time spent: 2.855856854
+Time spent: 2.830961577
+Time spent: 2.861023056
+Time spent: 2.838436297
+Time spent: 2.859577260
+Time spent: 2.862847152
+Time spent: 2.830028354
+Time spent: 2.852873475
+Time spent: 2.843222967
+Time spent: 2.854404648
+Time spent: 2.882552359
+Time spent: 2.835970132
+Time spent: 2.859034215
+Time spent: 2.837377365
+Time spent: 2.855360360
+Time spent: 2.841768505
+Time spent: 2.835150352
+Time spent: 2.838341725
+Time spent: 2.886278858
+Time spent: 2.837388197
+Time spent: 2.881629239
+Time spent: 2.858526158
+Time spent: 2.869162194
+Time spent: 2.858869025
+Time spent: 2.865337632
+Time spent: 2.861023534
+Time spent: 2.882142306
+Time spent: 2.862185878
+Time spent: 2.860670240
+Time spent: 2.884154275
+Time spent: 2.868390494
+Time spent: 2.865347258
+Time spent: 2.865879951
+Time spent: 2.833422459
+Time spent: 2.867658424
+Time spent: 2.935430527

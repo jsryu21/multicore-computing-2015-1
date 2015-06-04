@@ -1,0 +1,32 @@
+myid : 0, from : 0, to : 16384
+myid : 1, from : 16384, to : 32768
+myid : 3, from : 49152, to : 65536
+myid : 4, from : 65536, to : 81920
+myid : 6, from : 98304, to : 114688
+myid : 7, from : 114688, to : 131072
+myid : 11, from : 180224, to : 196608
+myid : 14, from : 229376, to : 245760
+myid : 5, from : 81920, to : 98304
+myid : 15, from : 245760, to : 262144
+myid : 8, from : 131072, to : 147456
+myid : 9, from : 147456, to : 163840
+myid : 12, from : 196608, to : 212992
+myid : 2, from : 32768, to : 49152
+myid : 10, from : 163840, to : 180224
+myid : 13, from : 212992, to : 229376
+Time spent: 11.014650803
+Time spent: 11.045952459
+Time spent: 11.047708826
+Time spent: 11.054634787
+Time spent: 11.021938739
+Time spent: 11.047562660
+Time spent: 11.047423703
+Time spent: 11.058878178
+Time spent: 11.018905633
+Time spent: 11.056575911
+Time spent: 11.027797564
+Time spent: 11.022439020
+Time spent: 11.023638542
+Time spent: 11.021742705
+Time spent: 11.025458003
+Time spent: 11.060438342

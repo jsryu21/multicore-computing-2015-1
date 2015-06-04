@@ -1,0 +1,8 @@
+myid : 1, from : 65536, to : 131072
+myid : 3, from : 196608, to : 262144
+myid : 0, from : 0, to : 65536
+myid : 2, from : 131072, to : 196608
+Time spent: 37.292320552
+Time spent: 37.290693160
+Time spent: 37.292437250
+Time spent: 37.295403453
