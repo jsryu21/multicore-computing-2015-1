@@ -7,7 +7,7 @@
 #include "mpi.h"
 #include <string.h>
 
-int NDIM = 2048;
+int NDIM = 8192;
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
 float** a;
@@ -25,6 +25,7 @@ int mat_mul( float** c, float** a, float** b, int argc, char** argv )
     int numtasks, taskid;
     int gap, remain, task_i, from, to, row_i;
     int i, j, r;
+    int my_from, my_to;
 
     MPI_Init(&argc, &argv);
     MPI_Comm_size(MPI_COMM_WORLD, &numtasks);
@@ -43,10 +44,16 @@ int mat_mul( float** c, float** a, float** b, int argc, char** argv )
         }
 
         // Scatter matrix a
-        gap = NDIM / (numtasks - 1);
-        remain = NDIM - gap * (numtasks - 1);
-        from = 0;
-        to = 0;
+        gap = NDIM / numtasks;
+        remain = NDIM - gap * numtasks;
+        my_from = 0;
+        my_to = my_from + gap;
+        if (remain > 0) {
+            my_to++;
+            remain--;
+        }
+        to = my_to;
+
         for (task_i = 1; task_i < numtasks; ++task_i) {
             from = to;
             to = from + gap;
@@ -64,8 +71,17 @@ int mat_mul( float** c, float** a, float** b, int argc, char** argv )
             MPI_Bcast(b[i], NDIM, MPI_FLOAT, 0, MPI_COMM_WORLD);
         }
 
+        for (j = 0; j < NDIM; ++j) {
+            for (row_i = my_from; row_i < my_to; ++row_i) {
+                r = a[row_i][j];
+                for (i = 0; i < NDIM; ++i) {
+                    c[row_i][i] += r * b[j][i];
+                }
+            }
+        }
+
         // Receive reducing result matrix c
-        for (i = 0; i < NDIM; ++i) {
+        for (i = my_to; i < NDIM; ++i) {
             MPI_Recv(temp_c, NDIM, MPI_FLOAT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
             memcpy(c[status.MPI_TAG], temp_c, NDIM * sizeof(float));
         }
@@ -81,11 +97,11 @@ int mat_mul( float** c, float** a, float** b, int argc, char** argv )
         }
 
         // Receive scattered matrix a
-        gap = NDIM / (numtasks - 1);
-        remain = NDIM - gap * (numtasks - 1);
+        gap = NDIM / numtasks;
+        remain = NDIM - gap * numtasks;
         from = 0;
         to = 0;
-        for (task_i = 1; task_i < numtasks; ++task_i) {
+        for (task_i = 0; task_i < numtasks; ++task_i) {
             from = to;
             to = from + gap;
             if (remain > 0) {
@@ -242,8 +258,9 @@ int main(int argc, char** argv)
     ret = mat_mul( c, a, b, argc, argv );
     timer_stop(1);
 
-    printf("Time elapsed : %lf sec\n", timer_read(1));
-
+    if (ret == 0) {
+        printf("Time elapsed : %lf sec\n", timer_read(1));
+    }
 
     if( ret == 0 && validation )
         check_mat_mul( c, a, b );
