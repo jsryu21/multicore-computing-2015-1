@@ -64,10 +64,10 @@ int main(int argc, char** argv)
     int ret = kmeans(iteration_n, class_n, data_n, (Point*)centroids, (Point*)data, partitioned, num_threads, local_size, argc, argv);
     clock_gettime(CLOCK_MONOTONIC, &end);
 
-    timespec_subtract(&spent, &end, &start);
-    printf("Time spent: %ld.%09ld\n", spent.tv_sec, spent.tv_nsec);
-
     if (ret == 0) {
+        timespec_subtract(&spent, &end, &start);
+        printf("Time spent: %ld.%09ld\n", spent.tv_sec, spent.tv_nsec);
+
         // Write classified result
         io_file = fopen(argv[3], "wb");
         fwrite(&data_n, sizeof(data_n), 1, io_file);
