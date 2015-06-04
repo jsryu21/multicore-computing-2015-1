@@ -14,21 +14,21 @@
 
 typedef struct
 {
-  int Id;
-  FTYPE dSimSwaptionMeanPrice;
-  FTYPE dSimSwaptionStdError;
-  FTYPE dStrike;
-  FTYPE dCompounding;
-  FTYPE dMaturity;
-  FTYPE dTenor;
-  FTYPE dPaymentInterval;
-  int iN;
-  FTYPE dYears;
-  int iFactors;
-  FTYPE *pdYield;
-  FTYPE **ppdFactors;
+    int Id;
+    FTYPE dSimSwaptionMeanPrice;
+    FTYPE dSimSwaptionStdError;
+    FTYPE dStrike;
+    FTYPE dCompounding;
+    FTYPE dMaturity;
+    FTYPE dTenor;
+    FTYPE dPaymentInterval;
+    int iN;
+    FTYPE dYears;
+    int iFactors;
+    FTYPE *pdYield;
+    FTYPE **ppdFactors;
 } parm;
- 
+
 
 
 #endif //__TYPE__

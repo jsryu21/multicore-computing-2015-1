@@ -10,5 +10,5 @@ FTYPE dMax( FTYPE dA, FTYPE dB );
 
 FTYPE dMax( FTYPE dA, FTYPE dB )
 {
-  return (dA>dB ? dA:dB);
+    return (dA>dB ? dA:dB);
 } // end of dMax

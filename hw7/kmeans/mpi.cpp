@@ -22,23 +22,16 @@ int kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* da
 
     // https://www.msi.umn.edu/workshops/mpi/hands-on/derived-datatypes/struct/assign
     MPI_Datatype mystruct;
-    int          blocklens[2];
-    MPI_Aint     indices[2];
-    MPI_Datatype old_types[2];
+    int blocklens[1];
+    MPI_Aint indices[1];
+    MPI_Datatype old_types[1];
 
     /* One value of each type */
-    blocklens[0] = 1;
-    blocklens[1] = 1;
+    blocklens[0] = 2;
+    indices[0] = 0;
     /* The base types */
     old_types[0] = MPI_FLOAT;
-    old_types[1] = MPI_FLOAT;
-    /* The locations of each element */
-    MPI_Address( &centroids[0].x, &indices[0] );
-    MPI_Address( &centroids[0].y, &indices[1] );
-    /* Make relative */
-    indices[1] = indices[1] - indices[0];
-    indices[0] = 0;
-    MPI_Type_struct( 2, blocklens, indices, old_types, &mystruct );
+    MPI_Type_create_struct( 1, blocklens, indices, old_types, &mystruct );
     MPI_Type_commit( &mystruct );
 
     MPI_Op myOp;
@@ -101,9 +94,7 @@ int kmeans(int iteration_n, int class_n, int data_n, Point* centroids, Point* da
             memset(count, 0, class_n * sizeof(int));
         }
 
-        for (int class_i = 0; class_i < class_n; ++class_i) {
-            MPI_Allreduce(&tempCentroids[class_i], &centroids[class_i], 1, mystruct, myOp, MPI_COMM_WORLD);
-        }
+        MPI_Allreduce(tempCentroids, centroids, class_n, mystruct, myOp, MPI_COMM_WORLD);
         MPI_Allreduce(tempCount, count, class_n, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
         for (int class_i = 0; class_i < class_n; ++class_i) {
