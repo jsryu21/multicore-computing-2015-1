@@ -19,11 +19,6 @@
 
 #endif //ENABLE_THREADS
 
-
-#ifdef ENABLE_PARSEC_HOOKS
-#include <hooks.h>
-#endif
-
 int NUM_TRIALS = DEFAULT_NUM_TRIALS;
 int nThreads = 1;
 int nSwaptions = 1;
@@ -62,9 +57,6 @@ void * worker(void *arg){
     return NULL;    
 }
 
-
-
-
 //Please note: Whenever we type-cast to (int), we add 0.5 to ensure that the value is rounded to the correct number. 
 //For instance, if X/Y = 0.999 then (int) (X/Y) will equal 0 and not 1 (as (int) rounds down).
 //Adding 0.5 ensures that this does not happen. Therefore we use (int) (X/Y + 0.5); instead of (int) (X/Y);
@@ -75,19 +67,8 @@ int main(int argc, char *argv[])
     int i,j;
 
     FTYPE **factors=NULL;
-
-#ifdef PARSEC_VERSION
-#define __PARSEC_STRING(x) #x
-#define __PARSEC_XSTRING(x) __PARSEC_STRING(x)
-    printf("PARSEC Benchmark Suite Version "__PARSEC_XSTRING(PARSEC_VERSION)"\n"); 
-    fflush(NULL);
-#else
     printf("PARSEC Benchmark Suite\n");
     fflush(NULL);
-#endif //PARSEC_VERSION
-#ifdef ENABLE_PARSEC_HOOKS
-    __parsec_bench_begin(__parsec_swaptions);
-#endif
 
     if(argc == 1)
     {
@@ -111,7 +92,6 @@ int main(int argc, char *argv[])
     printf("Number of Simulations: %d,  Number of threads: %d Number of swaptions: %d\n", NUM_TRIALS, nThreads, nSwaptions);
 
 #ifdef ENABLE_THREADS
-
     pthread_t      *threads;
     pthread_attr_t  pthread_custom_attr;
 
@@ -128,7 +108,6 @@ int main(int argc, char *argv[])
         fprintf(stderr,"Number of threads must be between 1 and %d.\n", MAX_THREAD);
         exit(1);
     }
-
 #else
     if (nThreads != 1)
     {
@@ -174,8 +153,7 @@ int main(int argc, char *argv[])
     factors[2][9]= -.001250;
 
     // setting up multiple swaptions
-    swaptions = 
-    (parm *)malloc(sizeof(parm)*nSwaptions);
+    swaptions = (parm *)malloc(sizeof(parm)*nSwaptions);
 
     int k;
     for (i = 0; i < nSwaptions; i++) {
@@ -203,12 +181,8 @@ int main(int argc, char *argv[])
 
 
     // **********Calling the Swaption Pricing Routine*****************
-#ifdef ENABLE_PARSEC_HOOKS
-    __parsec_roi_begin();
-#endif
 
 #ifdef ENABLE_THREADS
-
     int threadIDs[nThreads];
     for (i = 0; i < nThreads; i++) {
         threadIDs[i] = i;
@@ -219,15 +193,10 @@ int main(int argc, char *argv[])
     }
 
     free(threads);
-
 #else
     int threadID=0;
     worker(&threadID);
 #endif //ENABLE_THREADS
-
-#ifdef ENABLE_PARSEC_HOOKS
-    __parsec_roi_end();
-#endif
 
     for (i = 0; i < nSwaptions; i++) {
         fprintf(stderr,"Swaption%d: [SwaptionPrice: %.10lf StdError: %.10lf] \n", 
@@ -240,13 +209,8 @@ int main(int argc, char *argv[])
         free_dmatrix(swaptions[i].ppdFactors, 0, swaptions[i].iFactors-1, 0, swaptions[i].iN-2);
     }
 
-
     free(swaptions);
     //***********************************************************
-
-#ifdef ENABLE_PARSEC_HOOKS
-    __parsec_bench_end();
-#endif
 
     return iSuccess;
 }
