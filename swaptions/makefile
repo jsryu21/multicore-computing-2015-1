@@ -15,7 +15,7 @@ OBJS= CumNormalInv.o MaxFunction.o RanUnif.o nr_routines.o icdf.o \
 ifdef version
 ifeq "$(version)" "pthread"
 	DEF := $(DEF) -DENABLE_THREADS
-	CXXFLAGS := $(CXXFLAGS) -pthread
+	CXXFLAGS := $(CXXFLAGS) -pthread -pg -O3 -lm -mfma
 	EXEC := $(EXEC_PTHREAD)
 endif
 ifeq "$(version)" "cpu"
@@ -52,7 +52,7 @@ $(EXEC): $(OBJS)
 	$(CXX) $(CXXFLAGS) $(DEF) -c $*.c -o $*.o
 
 clean:
-	rm -f $(OBJS) $(EXEC) $(EXEC_PTHREAD) $(EXEC_CPU) $(EXEC_GPU) $(EXEC_MPI) $(EXEC_SNUCL)
+	rm -f $(OBJS) $(EXEC) $(EXEC_PTHREAD) $(EXEC_CPU) $(EXEC_GPU) $(EXEC_MPI) $(EXEC_SNUCL) task*
 
 remove_obj_exec:
 	rm -f $(OBJS) $(EXEC)
