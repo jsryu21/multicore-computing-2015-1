@@ -72,6 +72,7 @@ void * worker(void *arg){
     return NULL;    
 }
 
+#if defined(ENABLE_CPU) || defined(ENABLE_GPU) || defined(ENABLE_MPI)
 const char *getErrorString(cl_int error)
 {
     switch(error){
@@ -156,6 +157,7 @@ void PrintIfErrors(const std::string& err_message, const cl_int errcode) {
         printf(ss.str().c_str());
     }
 }
+#endif
 
 //Please note: Whenever we type-cast to (int), we add 0.5 to ensure that the value is rounded to the correct number. 
 //For instance, if X/Y = 0.999 then (int) (X/Y) will equal 0 and not 1 (as (int) rounds down).
@@ -252,7 +254,7 @@ int main(int argc, char *argv[])
     program = clCreateProgramWithSource(context, 1, (const char**)&source_str, &source_size, &errcode);
     PrintIfErrors("clCreateProgramWithSource", errcode);
     std::stringstream ss;
-    ss << "-D SIZE=" << iN;
+    ss << "-D SIZE=" << iN << " -I /home/mc14/multicore-computing-2015-1/swaptions";
     errcode = clBuildProgram(program, 1, &device, ss.str().c_str(), NULL, NULL);
     PrintIfErrors("clBuildProgram", errcode);
     kernel = clCreateKernel(program, "kernel_func", &errcode);
