@@ -25,10 +25,6 @@ typedef struct
     int iN;
     FTYPE dYears;
     int iFactors;
-    FTYPE *pdYield;
-    FTYPE **ppdFactors;
 } parm;
-
-
 
 #endif //__TYPE__

@@ -141,12 +141,12 @@ FTYPE *dvector( long nl, long nh )
 
     FTYPE *v;
 
-    v=(FTYPE *)malloc((size_t) ((nh-nl+2)*sizeof(FTYPE)));
+    v=(FTYPE *)malloc((size_t) ((nh-nl+1)*sizeof(FTYPE)));
     if (!v) {
         std::string str = "allocation failure in dvector()";
         nrerror(const_cast< char* >(str.c_str()));
     }
-    return v-nl+1;
+    return v-nl;
 
 } // end of dvector
 
@@ -155,7 +155,7 @@ void free_dvector( FTYPE *v, long nl, long nh )
 {
     // free a FTYPE vector allocated with dvector()
 
-    free((char*) (v+nl-1));
+    free((char*) (v+nl));
 
 } // end of free_dvector
 
@@ -168,21 +168,19 @@ FTYPE **dmatrix( long nrl, long nrh, long ncl, long nch )
     FTYPE **m;
 
     // allocate pointers to rows
-    m=(FTYPE **) malloc((size_t)((nrow+1)*sizeof(FTYPE*)));
+    m=(FTYPE **) malloc((size_t)(nrow*sizeof(FTYPE*)));
     if (!m) {
         std::string str = "allocation failure 1 in dmatrix()";
         nrerror(const_cast< char* >(str.c_str()));
     }
-    m += 1;
     m -= nrl;
 
     // allocate rows and set pointers to them
-    m[nrl]=(FTYPE *) malloc((size_t)((nrow*ncol+1)*sizeof(FTYPE)));
+    m[nrl]=(FTYPE *) malloc((size_t)(nrow*ncol*sizeof(FTYPE)));
     if (!m[nrl]) {
         std::string str = "allocation failure 2 in dmatrix()";
         nrerror(const_cast< char* >(str.c_str()));
     }
-    m[nrl] += 1;
     m[nrl] -= ncl;
 
     for(i=nrl+1;i<=nrh;i++) m[i]=m[i-1]+ncol;
@@ -197,8 +195,8 @@ void free_dmatrix( FTYPE **m, long nrl, long nrh, long ncl, long nch )
 {
     // free a FTYPE matrix allocated by dmatrix()
 
-    free((char*) (m[nrl]+ncl-1));
-    free((char*) (m+nrl-1));
+    free((char*) (m[nrl]+ncl));
+    free((char*) (m+nrl));
 
 } // end of free_dmatrix
 

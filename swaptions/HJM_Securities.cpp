@@ -34,19 +34,44 @@
 #endif
 
 int NUM_TRIALS = DEFAULT_NUM_TRIALS;
+int BLOCK_SIZE_ARG = BLOCK_SIZE;
 int nThreads = 1;
 int nSwaptions = 1;
 int iN = 11; 
 FTYPE dYears = 5.5; 
 int iFactors = 3; 
 parm *swaptions;
+
+#if defined(ENABLE_SEQ) || defined(ENABLE_THREAD)
+FTYPE** ppdYield;
+FTYPE*** pppdFactors;
+#endif
+#ifdef ENABLE_CPU
+// vector
+FTYPE* pdYield;
+FTYPE* pdForward;
+FTYPE* pdTotalDrift;
+FTYPE* pdPayoffDiscountFactors;
+FTYPE* pdDiscountingRatePath;
+FTYPE* pdSwapRatePath;
+FTYPE* pdSwapDiscountFactors;
+FTYPE* pdSwapPayoffs;
+FTYPE* pdExpRes;
+// matrix
+FTYPE* pdFactors;
+FTYPE* pdHJMPath;
+FTYPE* pdDrifts;
+FTYPE* pdZ;
+FTYPE* pdRandZ;
+#endif
+
 static const int MAX_SOURCE_SIZE = 0x100000;
 
-// =================================================
 FTYPE *dSumSimSwaptionPrice_global_ptr;
 FTYPE *dSumSquareSimSwaptionPrice_global_ptr;
 int chunksize;
 
+#if defined(ENABLE_SEQ) || defined(ENABLE_THREAD)
 void * worker(void *arg){
     int tid = *((int *)arg);
     FTYPE pdSwaptionPrice[2];
@@ -54,7 +79,7 @@ void * worker(void *arg){
     int chunksize = nSwaptions/nThreads;
     int beg = tid*chunksize;
     int end = (tid+1)*chunksize;
-    if(tid == nThreads -1 )
+    if(tid == nThreads -1)
         end = nSwaptions;
 
     for(int i=beg; i < end; i++) {
@@ -62,7 +87,7 @@ void * worker(void *arg){
                 swaptions[i].dCompounding, swaptions[i].dMaturity, 
                 swaptions[i].dTenor, swaptions[i].dPaymentInterval,
                 swaptions[i].iN, swaptions[i].iFactors, swaptions[i].dYears, 
-                swaptions[i].pdYield, swaptions[i].ppdFactors,
+                ppdYield[i], pppdFactors[i],
                 100, NUM_TRIALS, BLOCK_SIZE, 0);
         assert(iSuccess == 1);
         swaptions[i].dSimSwaptionMeanPrice = pdSwaptionPrice[0];
@@ -71,6 +96,7 @@ void * worker(void *arg){
 
     return NULL;    
 }
+#endif
 
 #if defined(ENABLE_CPU) || defined(ENABLE_GPU) || defined(ENABLE_MPI)
 const char *getErrorString(cl_int error)
@@ -226,14 +252,70 @@ int main(int argc, char *argv[])
     cl_command_queue command_queue;
     cl_program program;
     cl_mem bufferSwaptions;
+
+    // vector
+    cl_mem bufYield;
+    cl_mem bufForward;
+    cl_mem bufTotalDrift;
+    cl_mem bufPayoffDiscountFactors;
+    cl_mem bufDiscountingRatePath;
+    cl_mem bufSwapRatePath;
+    cl_mem bufSwapDiscountFactors;
+    cl_mem bufSwapPayoffs;
+    cl_mem bufExpRes;
+
+    // matrix
+    cl_mem bufFactors;
+    cl_mem bufHJMPath;
+    cl_mem bufDrifts;
+    cl_mem bufZ;
+    cl_mem bufRandZ;
+
     cl_kernel kernel;
     size_t sizeSwaptions = nSwaptions * sizeof(parm);
+
+    // vector
+    size_t sizeYield = nSwaptions * iN * sizeof(FTYPE);
+    size_t sizeForward = nSwaptions * iN * sizeof(FTYPE);
+    size_t sizeTotalDrift = nSwaptions * (iN - 1) * sizeof(FTYPE);
+    size_t sizePayoffDiscountFactors = nSwaptions * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeDiscountingRatePath = nSwaptions * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+
+    FTYPE dMaturity = 1;
+    FTYPE ddelt = static_cast< FTYPE >(dYears / iN);
+    int iSwapVectorLength = static_cast< int >(iN - dMaturity / ddelt + 0.5); //This is the length of the HJM rate path at the time index
+
+    size_t sizeSwapRatePath = nSwaptions * (iSwapVectorLength * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeSwapDiscountFactors = nSwaptions * (iSwapVectorLength * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeSwapPayoffs = nSwaptions * iSwapVectorLength * sizeof(FTYPE);
+    size_t sizeExpRes = nSwaptions * ((iN - 1) * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+
+    // matrix
+    size_t sizeFactors = nSwaptions * iFactors * (iN - 1) * sizeof(FTYPE);
+    size_t sizeHJMPath = nSwaptions * iN * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeDrifts = nSwaptions * iFactors * (iN - 1) * sizeof(FTYPE);
+    size_t sizeZ = nSwaptions * iFactors * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeRandZ = nSwaptions * iFactors * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
 
     clGetPlatformIDs(1, &platform, NULL);
     clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 1, &device, NULL);
     context = clCreateContext(0, 1, &device, NULL, NULL, NULL);
     command_queue = clCreateCommandQueue(context, device, 0, NULL);
     bufferSwaptions = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeSwaptions, NULL, NULL);
+    bufYield = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeYield, NULL, NULL);
+    bufForward = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeForward, NULL, NULL);
+    bufTotalDrift = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeTotalDrift, NULL, NULL);
+    bufPayoffDiscountFactors = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizePayoffDiscountFactors, NULL, NULL);
+    bufDiscountingRatePath = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeDiscountingRatePath, NULL, NULL);
+    bufSwapRatePath = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeSwapRatePath, NULL, NULL);
+    bufSwapDiscountFactors = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeSwapDiscountFactors, NULL, NULL);
+    bufSwapPayoffs = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeSwapPayoffs, NULL, NULL);
+    bufExpRes = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeExpRes, NULL, NULL);
+    bufFactors = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeFactors, NULL, NULL);
+    bufHJMPath = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeHJMPath, NULL, NULL);
+    bufDrifts = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeDrifts, NULL, NULL);
+    bufZ = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeZ, NULL, NULL);
+    bufRandZ = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeRandZ, NULL, NULL);
 
     // read kernel code
     FILE* fp;
@@ -262,6 +344,38 @@ int main(int argc, char *argv[])
     errcode = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&bufferSwaptions);
     PrintIfErrors("clSetKernelArg", errcode);
     errcode = clSetKernelArg(kernel, 1, sizeof(cl_int), (void*)&nSwaptions);
+    PrintIfErrors("clSetKernelArg", errcode);
+    errcode = clSetKernelArg(kernel, 2, sizeof(cl_int), (void*)&NUM_TRIALS);
+    PrintIfErrors("clSetKernelArg", errcode);
+    errcode = clSetKernelArg(kernel, 3, sizeof(cl_int), (void*)&BLOCK_SIZE_ARG);
+    PrintIfErrors("clSetKernelArg", errcode);
+    errcode = clSetKernelArg(kernel, 4, sizeof(cl_mem), (void*)&bufYield);
+    PrintIfErrors("clSetKernelArg", errcode);
+    errcode = clSetKernelArg(kernel, 5, sizeof(cl_mem), (void*)&bufForward);
+    PrintIfErrors("clSetKernelArg", errcode);
+    errcode = clSetKernelArg(kernel, 6, sizeof(cl_mem), (void*)&bufTotalDrift);
+    PrintIfErrors("clSetKernelArg", errcode);
+    errcode = clSetKernelArg(kernel, 7, sizeof(cl_mem), (void*)&bufPayoffDiscountFactors);
+    PrintIfErrors("clSetKernelArg", errcode);
+    errcode = clSetKernelArg(kernel, 8, sizeof(cl_mem), (void*)&bufDiscountingRatePath);
+    PrintIfErrors("clSetKernelArg", errcode);
+    errcode = clSetKernelArg(kernel, 9, sizeof(cl_mem), (void*)&bufSwapRatePath);
+    PrintIfErrors("clSetKernelArg", errcode);
+    errcode = clSetKernelArg(kernel, 10, sizeof(cl_mem), (void*)&bufSwapDiscountFactors);
+    PrintIfErrors("clSetKernelArg", errcode);
+    errcode = clSetKernelArg(kernel, 11, sizeof(cl_mem), (void*)&bufSwapPayoffs);
+    PrintIfErrors("clSetKernelArg", errcode);
+    errcode = clSetKernelArg(kernel, 12, sizeof(cl_mem), (void*)&bufExpRes);
+    PrintIfErrors("clSetKernelArg", errcode);
+    errcode = clSetKernelArg(kernel, 13, sizeof(cl_mem), (void*)&bufFactors);
+    PrintIfErrors("clSetKernelArg", errcode);
+    errcode = clSetKernelArg(kernel, 14, sizeof(cl_mem), (void*)&bufHJMPath);
+    PrintIfErrors("clSetKernelArg", errcode);
+    errcode = clSetKernelArg(kernel, 15, sizeof(cl_mem), (void*)&bufDrifts);
+    PrintIfErrors("clSetKernelArg", errcode);
+    errcode = clSetKernelArg(kernel, 16, sizeof(cl_mem), (void*)&bufZ);
+    PrintIfErrors("clSetKernelArg", errcode);
+    errcode = clSetKernelArg(kernel, 17, sizeof(cl_mem), (void*)&bufRandZ);
     PrintIfErrors("clSetKernelArg", errcode);
 #endif
 #ifdef ENABLE_GPU
@@ -310,10 +424,32 @@ int main(int argc, char *argv[])
 #if defined(ENABLE_SEQ) || defined(ENABLE_THREAD)
     // setting up multiple swaptions
     swaptions = (parm *)malloc(sizeof(parm)*nSwaptions);
+    ppdYield = static_cast< FTYPE** >(malloc(nSwaptions * sizeof(FTYPE*)));
+    pppdFactors = static_cast< FTYPE*** >(malloc(nSwaptions * sizeof(FTYPE**)));
+    for (i = 0; i < nSwaptions; ++i) {
+        ppdYield[i] = dvector(0, iN - 1);
+        pppdFactors[i] = dmatrix(0, iFactors - 1, 0, iN - 2);
+    }
 #endif
 #ifdef ENABLE_CPU
     // Enqueue buffer
     swaptions = static_cast< parm* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeSwaptions, 0, NULL, NULL, NULL));
+    pdYield = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeYield, 0, NULL, NULL, NULL));
+    pdForward = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeForward, 0, NULL, NULL, NULL));
+    /*
+       pdTotalDrift = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeTotalDrift, 0, NULL, NULL, NULL));
+       pdPayoffDiscountFactors = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizePayoffDiscountFactors, 0, NULL, NULL, NULL));
+       pdDiscountingRatePath = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeDiscountingRatePath, 0, NULL, NULL, NULL));
+       pdSwapRatePath = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeSwapRatePath, 0, NULL, NULL, NULL));
+       pdSwapDiscountFactors = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeSwapDiscountFactors, 0, NULL, NULL, NULL));
+       pdSwapPayoffs = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeSwapPayoffs, 0, NULL, NULL, NULL));
+       pdExpRes = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeExpRes, 0, NULL, NULL, NULL));
+       pdFactors = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeFactors, 0, NULL, NULL, NULL));
+       pdHJMPath = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeHJMPath, 0, NULL, NULL, NULL));
+       pdDrifts = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeDrifts, 0, NULL, NULL, NULL));
+       pdZ = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeZ, 0, NULL, NULL, NULL));
+       pdRandZ = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeRandZ, 0, NULL, NULL, NULL));
+       */
 #endif
 
     int k;
@@ -328,16 +464,24 @@ int main(int argc, char *argv[])
         swaptions[i].dMaturity =  1;
         swaptions[i].dTenor =  2.0;
         swaptions[i].dPaymentInterval =  1.0;
-
-        swaptions[i].pdYield = dvector(0,iN-1);;
-        swaptions[i].pdYield[0] = .1;
+#if defined(ENABLE_SEQ) || defined(ENABLE_THREAD)
+        ppdYield[i][0] = .1;
         for(j=1;j<=swaptions[i].iN-1;++j)
-            swaptions[i].pdYield[j] = swaptions[i].pdYield[j-1]+.005;
+            ppdYield[i][j] = ppdYield[i][j-1]+.005;
 
-        swaptions[i].ppdFactors = dmatrix(0, swaptions[i].iFactors-1, 0, swaptions[i].iN-2);
         for(k=0;k<=swaptions[i].iFactors-1;++k)
             for(j=0;j<=swaptions[i].iN-2;++j)
-                swaptions[i].ppdFactors[k][j] = factors[k][j];
+                pppdFactors[i][k][j] = factors[k][j];
+#endif
+#ifdef ENABLE_CPU
+        pdYield[i * iN + 0] = .1;
+        for(j=1;j<=swaptions[i].iN-1;++j)
+            pdYield[i * iN + j] = pdYield[i * iN + j - 1]+.005;
+
+        for(k=0;k<=swaptions[i].iFactors-1;++k)
+            for(j=0;j<=swaptions[i].iN-2;++j)
+                pdFactors[i * iFactors * (iN - 1) + k * (iN - 1) + j] = factors[k][j];
+#endif
     }
 
     // **********Calling the Swaption Pricing Routine*****************
@@ -380,13 +524,16 @@ int main(int argc, char *argv[])
 
     }
 
+#if defined(ENABLE_SEQ) || defined(ENABLE_THREAD)
     for (i = 0; i < nSwaptions; i++) {
-        free_dvector(swaptions[i].pdYield, 0, swaptions[i].iN-1);
-        free_dmatrix(swaptions[i].ppdFactors, 0, swaptions[i].iFactors-1, 0, swaptions[i].iN-2);
+        free_dvector(ppdYield[i], 0, swaptions[i].iN-1);
+        free_dmatrix(pppdFactors[i], 0, swaptions[i].iFactors-1, 0, swaptions[i].iN-2);
     }
 
+    free(pppdFactors);
+    free(ppdYield);
+#endif
     free(swaptions);
-    //***********************************************************
 
     return iSuccess;
 }
