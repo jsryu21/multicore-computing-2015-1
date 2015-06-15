@@ -339,6 +339,21 @@ int main(int argc, char *argv[])
     ss << "-D SIZE=" << iN << " -I /home/mc14/multicore-computing-2015-1/swaptions";
     errcode = clBuildProgram(program, 1, &device, ss.str().c_str(), NULL, NULL);
     PrintIfErrors("clBuildProgram", errcode);
+
+    size_t log_size;
+    // First call to know the proper size
+    errcode = clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
+    PrintIfErrors("clGetProgramBuildInfo", errcode);
+
+    if (log_size > 0) {
+        char* build_log = static_cast< char* >(malloc(log_size + 1));
+        // Second call to get the log
+        errcode = clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, log_size, build_log, NULL);
+        build_log[log_size] = '\0';
+        printf("%s\n", build_log);
+        free(build_log);
+    }
+
     kernel = clCreateKernel(program, "kernel_func", &errcode);
     PrintIfErrors("clCreateKernel", errcode);
     errcode = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&bufferSwaptions);
