@@ -47,22 +47,8 @@ FTYPE** ppdYield;
 FTYPE*** pppdFactors;
 #endif
 #ifdef ENABLE_CPU
-// vector
 FTYPE* pdYield;
-FTYPE* pdForward;
-FTYPE* pdTotalDrift;
-FTYPE* pdPayoffDiscountFactors;
-FTYPE* pdDiscountingRatePath;
-FTYPE* pdSwapRatePath;
-FTYPE* pdSwapDiscountFactors;
-FTYPE* pdSwapPayoffs;
-FTYPE* pdExpRes;
-// matrix
 FTYPE* pdFactors;
-FTYPE* pdHJMPath;
-FTYPE* pdDrifts;
-FTYPE* pdZ;
-FTYPE* pdRandZ;
 #endif
 
 static const int MAX_SOURCE_SIZE = 0x100000;
@@ -282,8 +268,8 @@ int main(int argc, char *argv[])
     size_t sizeDiscountingRatePath = nSwaptions * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
 
     FTYPE dMaturity = 1;
-    FTYPE ddelt = static_cast< FTYPE >(dYears / iN);
-    int iSwapVectorLength = static_cast< int >(iN - dMaturity / ddelt + 0.5); //This is the length of the HJM rate path at the time index
+    FTYPE ddelt = (FTYPE)(dYears/iN);
+    int iSwapVectorLength = (int)(iN - dMaturity / ddelt + 0.5);
 
     size_t sizeSwapRatePath = nSwaptions * (iSwapVectorLength * BLOCK_SIZE_ARG) * sizeof(FTYPE);
     size_t sizeSwapDiscountFactors = nSwaptions * (iSwapVectorLength * BLOCK_SIZE_ARG) * sizeof(FTYPE);
@@ -335,9 +321,7 @@ int main(int argc, char *argv[])
     int errcode;
     program = clCreateProgramWithSource(context, 1, (const char**)&source_str, &source_size, &errcode);
     PrintIfErrors("clCreateProgramWithSource", errcode);
-    std::stringstream ss;
-    ss << "-D SIZE=" << iN << " -I /home/mc14/multicore-computing-2015-1/swaptions";
-    errcode = clBuildProgram(program, 1, &device, ss.str().c_str(), NULL, NULL);
+    errcode = clBuildProgram(program, 1, &device, NULL, NULL, NULL);
     PrintIfErrors("clBuildProgram", errcode);
 
     size_t log_size;
@@ -346,12 +330,12 @@ int main(int argc, char *argv[])
     PrintIfErrors("clGetProgramBuildInfo", errcode);
 
     if (log_size > 0) {
-        char* build_log = static_cast< char* >(malloc(log_size + 1));
+        char* build_log = new char[log_size + 1];
         // Second call to get the log
         errcode = clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, log_size, build_log, NULL);
         build_log[log_size] = '\0';
         printf("%s\n", build_log);
-        free(build_log);
+        delete build_log;
     }
 
     kernel = clCreateKernel(program, "kernel_func", &errcode);
@@ -448,23 +432,12 @@ int main(int argc, char *argv[])
 #endif
 #ifdef ENABLE_CPU
     // Enqueue buffer
-    swaptions = static_cast< parm* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeSwaptions, 0, NULL, NULL, NULL));
-    pdYield = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeYield, 0, NULL, NULL, NULL));
-    pdForward = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeForward, 0, NULL, NULL, NULL));
-    /*
-       pdTotalDrift = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeTotalDrift, 0, NULL, NULL, NULL));
-       pdPayoffDiscountFactors = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizePayoffDiscountFactors, 0, NULL, NULL, NULL));
-       pdDiscountingRatePath = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeDiscountingRatePath, 0, NULL, NULL, NULL));
-       pdSwapRatePath = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeSwapRatePath, 0, NULL, NULL, NULL));
-       pdSwapDiscountFactors = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeSwapDiscountFactors, 0, NULL, NULL, NULL));
-       pdSwapPayoffs = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeSwapPayoffs, 0, NULL, NULL, NULL));
-       pdExpRes = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeExpRes, 0, NULL, NULL, NULL));
-       pdFactors = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeFactors, 0, NULL, NULL, NULL));
-       pdHJMPath = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeHJMPath, 0, NULL, NULL, NULL));
-       pdDrifts = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeDrifts, 0, NULL, NULL, NULL));
-       pdZ = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeZ, 0, NULL, NULL, NULL));
-       pdRandZ = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeRandZ, 0, NULL, NULL, NULL));
-       */
+    swaptions = static_cast< parm* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeSwaptions, 0, NULL, NULL, &errcode));
+    PrintIfErrors("clEnqueueMapBuffer", errcode);
+    pdYield = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufYield, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeYield, 0, NULL, NULL, &errcode));
+    PrintIfErrors("clEnqueueMapBuffer", errcode);
+    pdFactors = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufFactors, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeFactors, 0, NULL, NULL, &errcode));
+    PrintIfErrors("clEnqueueMapBuffer", errcode);
 #endif
 
     int k;
@@ -489,7 +462,7 @@ int main(int argc, char *argv[])
                 pppdFactors[i][k][j] = factors[k][j];
 #endif
 #ifdef ENABLE_CPU
-        pdYield[i * iN + 0] = .1;
+        pdYield[i * iN] = .1;
         for(j=1;j<=swaptions[i].iN-1;++j)
             pdYield[i * iN + j] = pdYield[i * iN + j - 1]+.005;
 
@@ -497,6 +470,7 @@ int main(int argc, char *argv[])
             for(j=0;j<=swaptions[i].iN-2;++j)
                 pdFactors[i * iFactors * (iN - 1) + k * (iN - 1) + j] = factors[k][j];
 #endif
+        printf("host - Id %d, iN %d, iFactors %d, dYears %f, dStrike %f, dCompounding %f, dMaturity %f, dTenor %f, dPaymentInterval %f\n", swaptions[i].Id, swaptions[i].iN, swaptions[i].iFactors, swaptions[i].dYears, swaptions[i].dStrike, swaptions[i].dCompounding, swaptions[i].dMaturity, swaptions[i].dTenor, swaptions[i].dPaymentInterval);
     }
 
     // **********Calling the Swaption Pricing Routine*****************
@@ -547,6 +521,10 @@ int main(int argc, char *argv[])
 
     free(pppdFactors);
     free(ppdYield);
+#endif
+#ifdef ENABLE_CPU
+    free(pdFactors);
+    free(pdYield);
 #endif
     free(swaptions);
 

@@ -3,7 +3,6 @@
 
 typedef struct
 {
-    int Id;
     FTYPE dSimSwaptionMeanPrice;
     FTYPE dSimSwaptionStdError;
     FTYPE dStrike;
@@ -11,12 +10,11 @@ typedef struct
     FTYPE dMaturity;
     FTYPE dTenor;
     FTYPE dPaymentInterval;
-    int iN;
     FTYPE dYears;
+    int Id;
+    int iN;
     int iFactors;
-    FTYPE pdYield[SIZE];
-    FTYPE ppdFactors[][SIZE];
-} parm;
+} __attribute__ ((aligned (8))) parm;
 
 // HJM.h
 FTYPE RanUnif( long* s );
@@ -121,6 +119,13 @@ __kernel void kernel_func(
 
     if(tid == nWorkItems - 1) {
         end = nSwaptions;
+    }
+
+    if (tid == 0) {
+        int i;
+        for (i = 0; i < nSwaptions; ++i) {
+            printf("kernel - Id %d, iN %d, iFactors %d, dYears %f, dStrike %f, dCompounding %f, dMaturity %f, dTenor %f, dPaymentInterval %f\n", swaptions[i].Id, swaptions[i].iN, swaptions[i].iFactors, swaptions[i].dYears, swaptions[i].dStrike, swaptions[i].dCompounding, swaptions[i].dMaturity, swaptions[i].dTenor, swaptions[i].dPaymentInterval);
+        }
     }
 
     for(int i=beg; i < end; i++) {
@@ -532,7 +537,8 @@ int HJM_Swaption_Blocking(
     //Simulations begin:
     for (l=0;l<=lTrials-1;l+=BLOCK_SIZE) {
         //For each trial a new HJM Path is generated
-        iSuccess = HJM_SimPath_Forward_Blocking(pdHJMPath, iN, iFactors, dYears, pdForward, pdTotalDrift, pdFactors, pdZ, pdRandZ, &iRndSeed, BLOCK_SIZE); /* GC: 51% of the time goes here */
+        // GC: 51% of the time goes here
+        iSuccess = HJM_SimPath_Forward_Blocking(pdHJMPath, iN, iFactors, dYears, pdForward, pdTotalDrift, pdFactors, pdZ, pdRandZ, &iRndSeed, BLOCK_SIZE);
         if (iSuccess!=1)
             return iSuccess;
 
@@ -543,7 +549,8 @@ int HJM_Swaption_Blocking(
                 pdDiscountingRatePath[BLOCK_SIZE * i + b] = pdHJMPath[i * iN * (iN * BLOCK_SIZE) + b];
             }
         }
-        iSuccess = Discount_Factors_Blocking(pdPayoffDiscountFactors, iN, dYears, pdDiscountingRatePath, pdExpRes, BLOCK_SIZE); /* 15% of the time goes here */
+        //15% of the time goes here
+        iSuccess = Discount_Factors_Blocking(pdPayoffDiscountFactors, iN, dYears, pdDiscountingRatePath, pdExpRes, BLOCK_SIZE);
 
         if (iSuccess!=1)
             return iSuccess;

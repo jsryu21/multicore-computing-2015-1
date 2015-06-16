@@ -14,7 +14,6 @@
 
 typedef struct
 {
-    int Id;
     FTYPE dSimSwaptionMeanPrice;
     FTYPE dSimSwaptionStdError;
     FTYPE dStrike;
@@ -22,8 +21,9 @@ typedef struct
     FTYPE dMaturity;
     FTYPE dTenor;
     FTYPE dPaymentInterval;
-    int iN;
     FTYPE dYears;
+    int Id;
+    int iN;
     int iFactors;
 } parm;
 
