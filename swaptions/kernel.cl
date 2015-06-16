@@ -121,13 +121,6 @@ __kernel void kernel_func(
         end = nSwaptions;
     }
 
-    if (tid == 0) {
-        int i;
-        for (i = 0; i < nSwaptions; ++i) {
-            printf("kernel - Id %d, iN %d, iFactors %d, dYears %f, dStrike %f, dCompounding %f, dMaturity %f, dTenor %f, dPaymentInterval %f\n", swaptions[i].Id, swaptions[i].iN, swaptions[i].iFactors, swaptions[i].dYears, swaptions[i].dStrike, swaptions[i].dCompounding, swaptions[i].dMaturity, swaptions[i].dTenor, swaptions[i].dPaymentInterval);
-        }
-    }
-
     for(int i=beg; i < end; i++) {
         int iN = swaptions[i].iN;
         FTYPE dMaturity = swaptions[i].dMaturity;
@@ -149,12 +142,12 @@ __kernel void kernel_func(
                 &pdYield[i * iN],
                 &pdForward[i * iN],
                 &pdTotalDrift[i * (iN - 1)],
-                &pdPayoffDiscountFactors[i * iN * BLOCK_SIZE],
-                &pdDiscountingRatePath[i * iN * BLOCK_SIZE],
-                &pdSwapRatePath[i * iSwapVectorLength * BLOCK_SIZE],
-                &pdSwapDiscountFactors[i * iSwapVectorLength * BLOCK_SIZE],
+                &pdPayoffDiscountFactors[i * (iN * BLOCK_SIZE)],
+                &pdDiscountingRatePath[i * (iN * BLOCK_SIZE)],
+                &pdSwapRatePath[i * (iSwapVectorLength * BLOCK_SIZE)],
+                &pdSwapDiscountFactors[i * (iSwapVectorLength * BLOCK_SIZE)],
                 &pdSwapPayoffs[i * iSwapVectorLength],
-                &pdExpRes[i * (iN - 1) * BLOCK_SIZE],
+                &pdExpRes[i * ((iN - 1) * BLOCK_SIZE)],
                 &pdFactors[i * iFactors * (iN - 1)],
                 &pdHJMPath[i * iN * (iN * BLOCK_SIZE)],
                 &pdDrifts[i * iFactors * (iN - 1)],
@@ -281,19 +274,19 @@ int HJM_Drifts(
 
     //computation of factor drifts for shortest maturity
     for (i=0; i<=iFactors-1; ++i)
-        pdDrifts[i * iFactors * (iN - 1) + 0] = 0.5 * ddelt * pdFactors[i * iFactors * (iN - 1) + 0] * pdFactors[i * iFactors * (iN - 1) + 0];
+        pdDrifts[i * (iN - 1)] = 0.5*ddelt*(pdFactors[i * (iN - 1)])*(pdFactors[i * (iN - 1)]);
 
     //computation of factor drifts for other maturities
     for (i=0; i<=iFactors-1;++i)
         for (j=1; j<=iN-2; ++j)
         {
-            pdDrifts[i * iFactors * (iN - 1) + j] = 0;
+            pdDrifts[i * (iN - 1) + j] = 0;
             for(l=0;l<=j-1;++l)
-                pdDrifts[i * iFactors * (iN - 1) + j] -= pdDrifts[i * iFactors * (iN - 1) + l];
+                pdDrifts[i * (iN - 1) + j] -= pdDrifts[i * (iN - 1) + l];
             dSumVol=0;
             for(l=0;l<=j;++l)
-                dSumVol += pdFactors[i * iFactors * (iN - 1) + l];
-            pdDrifts[i * iFactors * (iN - 1) + j] += 0.5 * ddelt * dSumVol * dSumVol;
+                dSumVol += pdFactors[i * (iN - 1) + l];
+            pdDrifts[i * (iN - 1) + j] += 0.5*ddelt*(dSumVol)*(dSumVol);
         }
 
     //computation of total drifts for all maturities
@@ -301,7 +294,7 @@ int HJM_Drifts(
     {
         pdTotalDrift[i]=0;
         for(j=0;j<=iFactors-1;++j)
-            pdTotalDrift[i] += pdDrifts[j * iFactors * (iN - 1) + i];
+            pdTotalDrift[i]+= pdDrifts[j * (iN - 1) + i];
     }
 
     iSuccess=1;
@@ -360,7 +353,6 @@ int HJM_SimPath_Forward_Blocking(
 
     int iSuccess = 0;
     int i,j,l; //looping variables
-    int b, s; // looping variables
     FTYPE dTotalShock; //total shock by which the forward curve is hit at (t, T-t)
     FTYPE ddelt, sqrt_ddelt; //length of time steps
 
@@ -370,22 +362,23 @@ int HJM_SimPath_Forward_Blocking(
     // t=0 forward curve stored iN first row of ppdHJMPath
     // At time step 0: insert expected drift
     // rest reset to 0
-    for(b=0; b<BLOCK_SIZE; b++){
+    for(int b=0; b<BLOCK_SIZE; b++){
         for(j=0;j<=iN-1;j++){
-            pdHJMPath[BLOCK_SIZE * j + b] = pdForward[j];
+            pdHJMPath[BLOCK_SIZE*j + b] = pdForward[j];
 
             for(i=1;i<=iN-1;++i)
-            { pdHJMPath[i + iN * (iN * BLOCK_SIZE) + BLOCK_SIZE * j + b] = 0; } //initializing HJMPath to zero
+            { pdHJMPath[i * (iN * BLOCK_SIZE) + BLOCK_SIZE*j + b]=0; } //initializing HJMPath to zero
         }
     }
 
     // sequentially generating random numbers
-    for(b=0; b<BLOCK_SIZE; b++){
-        for(s=0; s<1; s++){
+    for(int b=0; b<BLOCK_SIZE; b++){
+        for(int s=0; s<1; s++){
             for (j=1;j<=iN-1;++j){
                 for (l=0;l<=iFactors-1;++l){
                     //compute random number in exact same sequence
-                    pdRandZ[l * iFactors * (iN * BLOCK_SIZE) + BLOCK_SIZE * j + b + s] = RanUnif(lRndSeed);  /* 10% of the total executition time */
+                    // 10% of the total executition time
+                    pdRandZ[l * (iN * BLOCK_SIZE) + BLOCK_SIZE*j + b + s] = RanUnif(lRndSeed);
                 }
             }
         }
@@ -393,26 +386,27 @@ int HJM_SimPath_Forward_Blocking(
 
     // shocks to hit various factors for forward curve at t
     // 18% of the total executition time
-    for(l=0;l<=iFactors-1;++l){
-        for(b=0; b<BLOCK_SIZE; b++){
-            for (j=1;j<=iN-1;++j){
-                pdZ[l * iFactors * (iN * BLOCK_SIZE) + BLOCK_SIZE * j + b]= CumNormalInv(pdRandZ[l * iFactors * (iN * BLOCK_SIZE) + BLOCK_SIZE * j + b]);  /* 18% of the total executition time */
+    for(int l=0;l<=iFactors-1;++l){
+        for(int b=0; b<BLOCK_SIZE; b++){
+            for (int j=1;j<=iN-1;++j){
+                // 18% of the total executition time
+                pdZ[l * (iN * BLOCK_SIZE) + BLOCK_SIZE*j + b]= CumNormalInv(pdRandZ[l * (iN * BLOCK_SIZE) + BLOCK_SIZE*j + b]);
             }
         }
     }
 
     // Generation of HJM Path1
-    for(b=0; b<BLOCK_SIZE; b++){ // b is the blocks
+    for(int b=0; b<BLOCK_SIZE; b++){ // b is the blocks
         for (j=1;j<=iN-1;++j) {// j is the timestep
 
             for (l=0;l<=iN-(j+1);++l){ // l is the future steps
                 dTotalShock = 0;
 
                 for (i=0;i<=iFactors-1;++i){// i steps through the stochastic factors
-                    dTotalShock += pdFactors[i * iFactors * (iN - 1) + l] * pdZ[i * iFactors * (iN * BLOCK_SIZE) + BLOCK_SIZE * j + b];
+                    dTotalShock += pdFactors[i * (iN - 1) + l]* pdZ[i * (iN * BLOCK_SIZE) + BLOCK_SIZE*j + b];
                 }
 
-                pdHJMPath[j * iN * (iN * BLOCK_SIZE) + BLOCK_SIZE * l + b] = pdHJMPath[(j - 1) * iN * (iN * BLOCK_SIZE) + BLOCK_SIZE * (l + 1) + b] + pdTotalDrift[l] * ddelt + sqrt_ddelt * dTotalShock;
+                pdHJMPath[j * (iN * BLOCK_SIZE) + BLOCK_SIZE*l+b] = pdHJMPath[(j-1) * (iN * BLOCK_SIZE) + BLOCK_SIZE*(l+1)+b]+ pdTotalDrift[l]*ddelt + sqrt_ddelt*dTotalShock;
                 //as per formula
             }
         }
@@ -477,7 +471,7 @@ int HJM_Swaption_Blocking(
         //using continuous compounding convention
     } else {
         //converting quoted strike to continuously compounded strike
-        dStrikeCont = (1/dCompounding)*log(1+dStrike*dCompounding);
+        dStrikeCont = (1/dCompounding)*log(1+dStrike*dCompounding);  
     }
     //e.g., let k be strike quoted in semi-annual convention. Therefore, 1$ at the end of
     //half a year would earn = (1+k/2). For converting to continuous compounding,
@@ -504,7 +498,6 @@ int HJM_Swaption_Blocking(
     FTYPE dSimSwaptionStdError;
 
     iSwapVectorLength = (int) (iN - dMaturity/ddelt + 0.5);	//This is the length of the HJM rate path at the time index
-    //corresponding to swaption maturity.
 
     iSwapStartTimeIndex = (int) (dMaturity/ddelt + 0.5);	//Swap starts at swaption maturity
     iSwapTimePoints = (int) (dTenor/ddelt + 0.5);			//Total HJM time points corresponding to the swap's tenor
@@ -538,7 +531,7 @@ int HJM_Swaption_Blocking(
     for (l=0;l<=lTrials-1;l+=BLOCK_SIZE) {
         //For each trial a new HJM Path is generated
         // GC: 51% of the time goes here
-        iSuccess = HJM_SimPath_Forward_Blocking(pdHJMPath, iN, iFactors, dYears, pdForward, pdTotalDrift, pdFactors, pdZ, pdRandZ, &iRndSeed, BLOCK_SIZE);
+        iSuccess = HJM_SimPath_Forward_Blocking(pdHJMPath, iN, iFactors, dYears, pdForward, pdTotalDrift,pdFactors, pdZ, pdRandZ, &iRndSeed, BLOCK_SIZE);
         if (iSuccess!=1)
             return iSuccess;
 
@@ -546,10 +539,10 @@ int HJM_Swaption_Blocking(
 
         for(i=0;i<=iN-1;++i){
             for(b=0;b<=BLOCK_SIZE-1;b++){
-                pdDiscountingRatePath[BLOCK_SIZE * i + b] = pdHJMPath[i * iN * (iN * BLOCK_SIZE) + b];
+                pdDiscountingRatePath[BLOCK_SIZE*i + b] = pdHJMPath[i * (iN * BLOCK_SIZE) + b];
             }
         }
-        //15% of the time goes here
+        // 15% of the time goes here
         iSuccess = Discount_Factors_Blocking(pdPayoffDiscountFactors, iN, dYears, pdDiscountingRatePath, pdExpRes, BLOCK_SIZE);
 
         if (iSuccess!=1)
@@ -558,8 +551,7 @@ int HJM_Swaption_Blocking(
         //now we compute discount factors along the swap path
         for (i=0;i<=iSwapVectorLength-1;++i){
             for(b=0;b<BLOCK_SIZE;b++){
-                pdSwapRatePath[i*BLOCK_SIZE + b] =
-                    pdHJMPath[iSwapStartTimeIndex * iN * (iN * BLOCK_SIZE) + i * BLOCK_SIZE + b];
+                pdSwapRatePath[i*BLOCK_SIZE + b] = pdHJMPath[iSwapStartTimeIndex * (iN * BLOCK_SIZE) + i*BLOCK_SIZE + b];
             }
         }
         iSuccess = Discount_Factors_Blocking(pdSwapDiscountFactors, iSwapVectorLength, dSwapVectorYears, pdSwapRatePath, pdExpRes, BLOCK_SIZE);
@@ -575,8 +567,6 @@ int HJM_Swaption_Blocking(
             dSwaptionPayoff = dMax(dFixedLegValue - 1.0, 0);
 
             dDiscSwaptionPayoff = dSwaptionPayoff*pdPayoffDiscountFactors[iSwapStartTimeIndex*BLOCK_SIZE + b];
-
-            // ========= end simulation ======================================
 
             // accumulate into the aggregating variables =====================
             dSumSimSwaptionPrice += dDiscSwaptionPayoff;
