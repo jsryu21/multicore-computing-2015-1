@@ -15,23 +15,15 @@
 #include "HJM_Securities.h"
 #include "HJM_type.h"
 
-#ifdef ENABLE_SEQ
-#endif
 #ifdef ENABLE_THREAD
 #include <pthread.h>
 #define MAX_THREAD 1024
 #endif
-#ifdef ENABLE_CPU
-#include <CL/cl.h>
-#endif
-#ifdef ENABLE_GPU
+#if defined(ENABLE_CPU) || defined(ENABLE_GPU)
 #include <CL/cl.h>
 #endif
 #ifdef ENABLE_MPI
-#include <CL/cl.h>
 #include "mpi.h"
-#endif
-#ifdef ENABLE_SNUCL
 #endif
 
 int NUM_TRIALS = DEFAULT_NUM_TRIALS;
@@ -48,7 +40,7 @@ parm *swaptions;
 FTYPE** ppdYield;
 FTYPE*** pppdFactors;
 #endif
-#ifdef ENABLE_CPU
+#if defined(ENABLE_CPU) || defined(ENABLE_GPU)
 FTYPE* pdYield;
 FTYPE* pdFactors;
 #endif
@@ -86,90 +78,147 @@ void * worker(void *arg){
 }
 #endif
 
-#if defined(ENABLE_CPU) || defined(ENABLE_GPU) || defined(ENABLE_MPI)
-const char *getErrorString(cl_int error)
+#if defined(ENABLE_CPU) || defined(ENABLE_GPU)
+static void checkErrors(cl_int status, char *label, int line)
 {
-    switch(error){
-        // run-time and JIT compiler errors
-        case 0: return "CL_SUCCESS";
-        case -1: return "CL_DEVICE_NOT_FOUND";
-        case -2: return "CL_DEVICE_NOT_AVAILABLE";
-        case -3: return "CL_COMPILER_NOT_AVAILABLE";
-        case -4: return "CL_MEM_OBJECT_ALLOCATION_FAILURE";
-        case -5: return "CL_OUT_OF_RESOURCES";
-        case -6: return "CL_OUT_OF_HOST_MEMORY";
-        case -7: return "CL_PROFILING_INFO_NOT_AVAILABLE";
-        case -8: return "CL_MEM_COPY_OVERLAP";
-        case -9: return "CL_IMAGE_FORMAT_MISMATCH";
-        case -10: return "CL_IMAGE_FORMAT_NOT_SUPPORTED";
-        case -11: return "CL_BUILD_PROGRAM_FAILURE";
-        case -12: return "CL_MAP_FAILURE";
-        case -13: return "CL_MISALIGNED_SUB_BUFFER_OFFSET";
-        case -14: return "CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST";
-        case -15: return "CL_COMPILE_PROGRAM_FAILURE";
-        case -16: return "CL_LINKER_NOT_AVAILABLE";
-        case -17: return "CL_LINK_PROGRAM_FAILURE";
-        case -18: return "CL_DEVICE_PARTITION_FAILED";
-        case -19: return "CL_KERNEL_ARG_INFO_NOT_AVAILABLE";
-
-                  // compile-time errors
-        case -30: return "CL_INVALID_VALUE";
-        case -31: return "CL_INVALID_DEVICE_TYPE";
-        case -32: return "CL_INVALID_PLATFORM";
-        case -33: return "CL_INVALID_DEVICE";
-        case -34: return "CL_INVALID_CONTEXT";
-        case -35: return "CL_INVALID_QUEUE_PROPERTIES";
-        case -36: return "CL_INVALID_COMMAND_QUEUE";
-        case -37: return "CL_INVALID_HOST_PTR";
-        case -38: return "CL_INVALID_MEM_OBJECT";
-        case -39: return "CL_INVALID_IMAGE_FORMAT_DESCRIPTOR";
-        case -40: return "CL_INVALID_IMAGE_SIZE";
-        case -41: return "CL_INVALID_SAMPLER";
-        case -42: return "CL_INVALID_BINARY";
-        case -43: return "CL_INVALID_BUILD_OPTIONS";
-        case -44: return "CL_INVALID_PROGRAM";
-        case -45: return "CL_INVALID_PROGRAM_EXECUTABLE";
-        case -46: return "CL_INVALID_KERNEL_NAME";
-        case -47: return "CL_INVALID_KERNEL_DEFINITION";
-        case -48: return "CL_INVALID_KERNEL";
-        case -49: return "CL_INVALID_ARG_INDEX";
-        case -50: return "CL_INVALID_ARG_VALUE";
-        case -51: return "CL_INVALID_ARG_SIZE";
-        case -52: return "CL_INVALID_KERNEL_ARGS";
-        case -53: return "CL_INVALID_WORK_DIMENSION";
-        case -54: return "CL_INVALID_WORK_GROUP_SIZE";
-        case -55: return "CL_INVALID_WORK_ITEM_SIZE";
-        case -56: return "CL_INVALID_GLOBAL_OFFSET";
-        case -57: return "CL_INVALID_EVENT_WAIT_LIST";
-        case -58: return "CL_INVALID_EVENT";
-        case -59: return "CL_INVALID_OPERATION";
-        case -60: return "CL_INVALID_GL_OBJECT";
-        case -61: return "CL_INVALID_BUFFER_SIZE";
-        case -62: return "CL_INVALID_MIP_LEVEL";
-        case -63: return "CL_INVALID_GLOBAL_WORK_SIZE";
-        case -64: return "CL_INVALID_PROPERTY";
-        case -65: return "CL_INVALID_IMAGE_DESCRIPTOR";
-        case -66: return "CL_INVALID_COMPILER_OPTIONS";
-        case -67: return "CL_INVALID_LINKER_OPTIONS";
-        case -68: return "CL_INVALID_DEVICE_PARTITION_COUNT";
-
-                  // extension errors
-        case -1000: return "CL_INVALID_GL_SHAREGROUP_REFERENCE_KHR";
-        case -1001: return "CL_PLATFORM_NOT_FOUND_KHR";
-        case -1002: return "CL_INVALID_D3D10_DEVICE_KHR";
-        case -1003: return "CL_INVALID_D3D10_RESOURCE_KHR";
-        case -1004: return "CL_D3D10_RESOURCE_ALREADY_ACQUIRED_KHR";
-        case -1005: return "CL_D3D10_RESOURCE_NOT_ACQUIRED_KHR";
-        default: return "Unknown OpenCL error";
+    switch (status)
+    {
+        case CL_SUCCESS:
+            return;
+        case CL_BUILD_PROGRAM_FAILURE:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_BUILD_PROGRAM_FAILURE\n", label, line);
+            break;
+        case CL_COMPILER_NOT_AVAILABLE:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_COMPILER_NOT_AVAILABLE\n", label, line);
+            break;
+        case CL_DEVICE_NOT_AVAILABLE:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_DEVICE_NOT_AVAILABLE\n", label, line);
+            break;
+        case CL_DEVICE_NOT_FOUND:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_DEVICE_NOT_FOUND\n", label, line);
+            break;
+        case CL_IMAGE_FORMAT_MISMATCH:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_IMAGE_FORMAT_MISMATCH\n", label, line);
+            break;
+        case CL_IMAGE_FORMAT_NOT_SUPPORTED:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_IMAGE_FORMAT_NOT_SUPPORTED\n", label, line);
+            break;
+        case CL_INVALID_ARG_INDEX:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_ARG_INDEX\n", label, line);
+            break;
+        case CL_INVALID_ARG_SIZE:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_ARG_SIZE\n", label, line);
+            break;
+        case CL_INVALID_ARG_VALUE:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_ARG_VALUE\n", label, line);
+            break;
+        case CL_INVALID_BINARY:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_BINARY\n", label, line);
+            break;
+        case CL_INVALID_BUFFER_SIZE:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_BUFFER_SIZE\n", label, line);
+            break;
+        case CL_INVALID_BUILD_OPTIONS:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_BUILD_OPTIONS\n", label, line);
+            break;
+        case CL_INVALID_COMMAND_QUEUE:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_COMMAND_QUEUE\n", label, line);
+            break;
+        case CL_INVALID_CONTEXT:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_CONTEXT\n", label, line);
+            break;
+        case CL_INVALID_DEVICE:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_DEVICE\n", label, line);
+            break;
+        case CL_INVALID_DEVICE_TYPE:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_DEVICE_TYPE\n", label, line);
+            break;
+        case CL_INVALID_EVENT:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_EVENT\n", label, line);
+            break;
+        case CL_INVALID_EVENT_WAIT_LIST:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_EVENT_WAIT_LIST\n", label, line);
+            break;
+        case CL_INVALID_GL_OBJECT:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_GL_OBJECT\n", label, line);
+            break;
+        case CL_INVALID_GLOBAL_OFFSET:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_GLOBAL_OFFSET\n", label, line);
+            break;
+        case CL_INVALID_HOST_PTR:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_HOST_PTR\n", label, line);
+            break;
+        case CL_INVALID_IMAGE_FORMAT_DESCRIPTOR:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_IMAGE_FORMAT_DESCRIPTOR\n", label, line);
+            break;
+        case CL_INVALID_IMAGE_SIZE:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_IMAGE_SIZE\n", label, line);
+            break;
+        case CL_INVALID_KERNEL_NAME:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_KERNEL_NAME\n", label, line);
+            break;
+        case CL_INVALID_KERNEL:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_KERNEL\n", label, line);
+            break;
+        case CL_INVALID_KERNEL_ARGS:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_KERNEL_ARGS\n", label, line);
+            break;
+        case CL_INVALID_KERNEL_DEFINITION:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_KERNEL_DEFINITION\n", label, line);
+            break;
+        case CL_INVALID_MEM_OBJECT:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_MEM_OBJECT\n", label, line);
+            break;
+        case CL_INVALID_OPERATION:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_OPERATION\n", label, line);
+            break;
+        case CL_INVALID_PLATFORM:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_PLATFORM\n", label, line);
+            break;
+        case CL_INVALID_PROGRAM:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_PROGRAM\n", label, line);
+            break;
+        case CL_INVALID_PROGRAM_EXECUTABLE:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_PROGRAM_EXECUTABLE\n", label, line);
+            break;
+        case CL_INVALID_QUEUE_PROPERTIES:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_QUEUE_PROPERTIES\n", label, line);
+            break;
+        case CL_INVALID_SAMPLER:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_SAMPLER\n", label, line);
+            break;
+        case CL_INVALID_VALUE:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_VALUE\n", label, line);
+            break;
+        case CL_INVALID_WORK_DIMENSION:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_WORK_DIMENSION\n", label, line);
+            break;
+        case CL_INVALID_WORK_GROUP_SIZE:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_WORK_GROUP_SIZE\n", label, line);
+            break;
+        case CL_INVALID_WORK_ITEM_SIZE:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_INVALID_WORK_ITEM_SIZE\n", label, line);
+            break;
+        case CL_MAP_FAILURE:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_MAP_FAILURE\n", label, line);
+            break;
+        case CL_MEM_OBJECT_ALLOCATION_FAILURE:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_MEM_OBJECT_ALLOCATION_FAILURE\n", label, line);
+            break;
+        case CL_MEM_COPY_OVERLAP:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_MEM_COPY_OVERLAP\n", label, line);
+            break;
+        case CL_OUT_OF_HOST_MEMORY:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_OUT_OF_HOST_MEMORY\n", label, line);
+            break;
+        case CL_OUT_OF_RESOURCES:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_OUT_OF_RESOURCES\n", label, line);
+            break;
+        case CL_PROFILING_INFO_NOT_AVAILABLE:
+            fprintf(stderr, "OpenCL error (at %s, line %d): CL_PROFILING_INFO_NOT_AVAILABLE\n", label, line);
+            break;
     }
-}
-
-void PrintIfErrors(const std::string& err_message, const cl_int errcode) {
-    if (errcode != 0) {
-        std::stringstream ss;
-        ss << err_message << " " << getErrorString(errcode) << "\n";
-        printf(ss.str().c_str());
-    }
+    exit(status);
 }
 #endif
 
@@ -240,7 +289,7 @@ int main(int argc, char *argv[])
         exit(1);
     }
 #endif
-#ifdef ENABLE_CPU
+#if defined(ENABLE_CPU) || defined(ENABLE_GPU)
     // CL code
     cl_platform_id platform;
     cl_device_id device;
@@ -294,11 +343,17 @@ int main(int argc, char *argv[])
     size_t sizeRandZ = nSwaptions * iFactors * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
 
     clGetPlatformIDs(1, &platform, NULL);
+#ifdef ENABLE_CPU
     clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 1, &device, NULL);
+#endif
+#ifdef ENABLE_GPU
+    clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, NULL);
+#endif
     context = clCreateContext(0, 1, &device, NULL, NULL, NULL);
     command_queue = clCreateCommandQueue(context, device, 0, NULL);
     bufferSwaptions = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeSwaptions, NULL, NULL);
     bufYield = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeYield, NULL, NULL);
+    bufFactors = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, sizeFactors, NULL, NULL);
     bufForward = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeForward, NULL, NULL);
     bufTotalDrift = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeTotalDrift, NULL, NULL);
     bufPayoffDiscountFactors = clCreateBuffer(context, CL_MEM_READ_WRITE, sizePayoffDiscountFactors, NULL, NULL);
@@ -315,7 +370,12 @@ int main(int argc, char *argv[])
 
     // read kernel code
     FILE* fp;
-    const char fileName[] = "./kernel.cl";
+#ifdef ENABLE_CPU
+    const char fileName[] = "./cpu.cl";
+#endif
+#ifdef ENABLE_GPU
+    const char fileName[] = "./gpu.cl";
+#endif
     size_t source_size;
     char* source_str;
     fp = fopen(fileName, "r");
@@ -330,68 +390,42 @@ int main(int argc, char *argv[])
     // create kernel
     int errcode;
     program = clCreateProgramWithSource(context, 1, (const char**)&source_str, &source_size, &errcode);
-    PrintIfErrors("clCreateProgramWithSource", errcode);
-    errcode = clBuildProgram(program, 1, &device, NULL, NULL, NULL);
-    PrintIfErrors("clBuildProgram", errcode);
+    checkErrors(errcode, (char*)"clCreateProgramWithSource", __LINE__);
+    checkErrors(clBuildProgram(program, 1, &device, NULL, NULL, NULL), (char*)"clBuildProgram", __LINE__);
 
     size_t log_size;
     // First call to know the proper size
-    errcode = clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size);
-    PrintIfErrors("clGetProgramBuildInfo", errcode);
+    checkErrors(clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, 0, NULL, &log_size), (char*)"clGetProgramBuildInfo", __LINE__);
 
     if (log_size > 0) {
         char* build_log = new char[log_size + 1];
         // Second call to get the log
-        errcode = clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, log_size, build_log, NULL);
+        checkErrors(clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, log_size, build_log, NULL), (char*)"clGetProgramBuildInfo", __LINE__);
         build_log[log_size] = '\0';
         printf("%s\n", build_log);
         delete build_log;
     }
 
     kernel = clCreateKernel(program, "kernel_func", &errcode);
-    PrintIfErrors("clCreateKernel", errcode);
-    errcode = clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&bufferSwaptions);
-    PrintIfErrors("clSetKernelArg", errcode);
-    errcode = clSetKernelArg(kernel, 1, sizeof(cl_int), (void*)&nSwaptions);
-    PrintIfErrors("clSetKernelArg", errcode);
-    errcode = clSetKernelArg(kernel, 2, sizeof(cl_int), (void*)&NUM_TRIALS);
-    PrintIfErrors("clSetKernelArg", errcode);
-    errcode = clSetKernelArg(kernel, 3, sizeof(cl_int), (void*)&BLOCK_SIZE_ARG);
-    PrintIfErrors("clSetKernelArg", errcode);
-    errcode = clSetKernelArg(kernel, 4, sizeof(cl_mem), (void*)&bufYield);
-    PrintIfErrors("clSetKernelArg", errcode);
-    errcode = clSetKernelArg(kernel, 5, sizeof(cl_mem), (void*)&bufForward);
-    PrintIfErrors("clSetKernelArg", errcode);
-    errcode = clSetKernelArg(kernel, 6, sizeof(cl_mem), (void*)&bufTotalDrift);
-    PrintIfErrors("clSetKernelArg", errcode);
-    errcode = clSetKernelArg(kernel, 7, sizeof(cl_mem), (void*)&bufPayoffDiscountFactors);
-    PrintIfErrors("clSetKernelArg", errcode);
-    errcode = clSetKernelArg(kernel, 8, sizeof(cl_mem), (void*)&bufDiscountingRatePath);
-    PrintIfErrors("clSetKernelArg", errcode);
-    errcode = clSetKernelArg(kernel, 9, sizeof(cl_mem), (void*)&bufSwapRatePath);
-    PrintIfErrors("clSetKernelArg", errcode);
-    errcode = clSetKernelArg(kernel, 10, sizeof(cl_mem), (void*)&bufSwapDiscountFactors);
-    PrintIfErrors("clSetKernelArg", errcode);
-    errcode = clSetKernelArg(kernel, 11, sizeof(cl_mem), (void*)&bufSwapPayoffs);
-    PrintIfErrors("clSetKernelArg", errcode);
-    errcode = clSetKernelArg(kernel, 12, sizeof(cl_mem), (void*)&bufExpRes);
-    PrintIfErrors("clSetKernelArg", errcode);
-    errcode = clSetKernelArg(kernel, 13, sizeof(cl_mem), (void*)&bufFactors);
-    PrintIfErrors("clSetKernelArg", errcode);
-    errcode = clSetKernelArg(kernel, 14, sizeof(cl_mem), (void*)&bufHJMPath);
-    PrintIfErrors("clSetKernelArg", errcode);
-    errcode = clSetKernelArg(kernel, 15, sizeof(cl_mem), (void*)&bufDrifts);
-    PrintIfErrors("clSetKernelArg", errcode);
-    errcode = clSetKernelArg(kernel, 16, sizeof(cl_mem), (void*)&bufZ);
-    PrintIfErrors("clSetKernelArg", errcode);
-    errcode = clSetKernelArg(kernel, 17, sizeof(cl_mem), (void*)&bufRandZ);
-    PrintIfErrors("clSetKernelArg", errcode);
-#endif
-#ifdef ENABLE_GPU
-#endif
-#ifdef ENABLE_MPI
-#endif
-#ifdef ENABLE_SNUCL
+    checkErrors(errcode, (char*)"clCreateKernel", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&bufferSwaptions), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 1, sizeof(cl_int), (void*)&nSwaptions), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 2, sizeof(cl_int), (void*)&NUM_TRIALS), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 3, sizeof(cl_int), (void*)&BLOCK_SIZE_ARG), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 4, sizeof(cl_mem), (void*)&bufYield), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 5, sizeof(cl_mem), (void*)&bufForward), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 6, sizeof(cl_mem), (void*)&bufTotalDrift), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 7, sizeof(cl_mem), (void*)&bufPayoffDiscountFactors), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 8, sizeof(cl_mem), (void*)&bufDiscountingRatePath), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 9, sizeof(cl_mem), (void*)&bufSwapRatePath), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 10, sizeof(cl_mem), (void*)&bufSwapDiscountFactors), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 11, sizeof(cl_mem), (void*)&bufSwapPayoffs), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 12, sizeof(cl_mem), (void*)&bufExpRes), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 13, sizeof(cl_mem), (void*)&bufFactors), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 14, sizeof(cl_mem), (void*)&bufHJMPath), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 15, sizeof(cl_mem), (void*)&bufDrifts), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 16, sizeof(cl_mem), (void*)&bufZ), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 17, sizeof(cl_mem), (void*)&bufRandZ), (char*)"clSetKernelArg", __LINE__);
 #endif
 
     // initialize input dataset
@@ -440,16 +474,15 @@ int main(int argc, char *argv[])
         pppdFactors[i] = dmatrix(0, iFactors - 1, 0, iN - 2);
     }
 #endif
-#ifdef ENABLE_CPU
+#if defined(ENABLE_CPU) || defined(ENABLE_GPU)
     // Enqueue buffer
     swaptions = static_cast< parm* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_FALSE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeSwaptions, 0, NULL, NULL, &errcode));
-    PrintIfErrors("clEnqueueMapBuffer", errcode);
+    checkErrors(errcode, (char*)"clEnqueueMapBuffer", __LINE__);
     pdYield = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufYield, CL_FALSE, CL_MAP_READ, 0, sizeYield, 0, NULL, NULL, &errcode));
-    PrintIfErrors("clEnqueueMapBuffer", errcode);
+    checkErrors(errcode, (char*)"clEnqueueMapBuffer", __LINE__);
     pdFactors = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufFactors, CL_FALSE, CL_MAP_READ, 0, sizeFactors, 0, NULL, NULL, &errcode));
-    PrintIfErrors("clEnqueueMapBuffer", errcode);
-    errcode = clFinish(command_queue);
-    PrintIfErrors("clFinish", errcode);
+    checkErrors(errcode, (char*)"clEnqueueMapBuffer", __LINE__);
+    checkErrors(clFinish(command_queue), (char*)"clFinish", __LINE__);
 #endif
 
     int k;
@@ -473,7 +506,7 @@ int main(int argc, char *argv[])
             for(j=0;j<=swaptions[i].iN-2;++j)
                 pppdFactors[i][k][j] = factors[k][j];
 #endif
-#ifdef ENABLE_CPU
+#if defined(ENABLE_CPU) || defined(ENABLE_GPU)
         pdYield[i * iN] = .1;
         for(j=1;j<=swaptions[i].iN-1;++j)
             pdYield[i * iN + j] = pdYield[i * iN + j - 1]+.005;
@@ -501,21 +534,13 @@ int main(int argc, char *argv[])
 
     free(threads);
 #endif
-#ifdef ENABLE_CPU
+#if defined(ENABLE_CPU) || defined(ENABLE_GPU)
     // Iterate through number of interations
     size_t global = nThreads;
     size_t local = local_size;
     // launch the kernel
-    errcode = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global, &local, 0, NULL, NULL);
-    PrintIfErrors("clEnqueueNDRangeKernel", errcode);
-    errcode = clFinish(command_queue);
-    PrintIfErrors("clFinish", errcode);
-#endif
-#ifdef ENABLE_GPU
-#endif
-#ifdef ENABLE_MPI
-#endif
-#ifdef ENABLE_SNUCL
+    checkErrors(clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global, &local, 0, NULL, NULL), (char*)"clEnqueueNDRangeKernel", __LINE__);
+    checkErrors(clFinish(command_queue), (char*)"clFinish", __LINE__);
 #endif
 
     for (i = 0; i < nSwaptions; i++) {
@@ -532,7 +557,7 @@ int main(int argc, char *argv[])
     free(pppdFactors);
     free(ppdYield);
 #endif
-#ifdef ENABLE_CPU
+#if defined(ENABLE_CPU) || defined(ENABLE_GPU)
     free(pdFactors);
     free(pdYield);
 #endif
