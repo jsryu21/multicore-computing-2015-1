@@ -37,6 +37,7 @@
 int NUM_TRIALS = DEFAULT_NUM_TRIALS;
 int BLOCK_SIZE_ARG = BLOCK_SIZE;
 int nThreads = 1;
+int local_size = 1;
 int nSwaptions = 1;
 int iN = 11; 
 FTYPE dYears = 5.5; 
@@ -200,7 +201,8 @@ int main(int argc, char *argv[])
 
     for (int j=1; j<argc; j++) {
         if (!strcmp("-sm", argv[j])) {NUM_TRIALS = atoi(argv[++j]);}
-        else if (!strcmp("-nt", argv[j])) {nThreads = atoi(argv[++j]);} 
+        else if (!strcmp("-nt", argv[j])) {nThreads = atoi(argv[++j]);}
+        else if (!strcmp("-ls", argv[j])) {local_size = atoi(argv[++j]);}
         else if (!strcmp("-ns", argv[j])) {nSwaptions = atoi(argv[++j]);} 
         else {
             fprintf(stderr," usage: \n\t-ns [number of swaptions (should be > number of threads]\n\t-sm [number of simulations]\n\t-nt [number of threads]\n"); 
@@ -296,20 +298,20 @@ int main(int argc, char *argv[])
     context = clCreateContext(0, 1, &device, NULL, NULL, NULL);
     command_queue = clCreateCommandQueue(context, device, 0, NULL);
     bufferSwaptions = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeSwaptions, NULL, NULL);
-    bufYield = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeYield, NULL, NULL);
-    bufForward = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeForward, NULL, NULL);
-    bufTotalDrift = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeTotalDrift, NULL, NULL);
-    bufPayoffDiscountFactors = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizePayoffDiscountFactors, NULL, NULL);
-    bufDiscountingRatePath = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeDiscountingRatePath, NULL, NULL);
-    bufSwapRatePath = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeSwapRatePath, NULL, NULL);
-    bufSwapDiscountFactors = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeSwapDiscountFactors, NULL, NULL);
-    bufSwapPayoffs = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeSwapPayoffs, NULL, NULL);
-    bufExpRes = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeExpRes, NULL, NULL);
-    bufFactors = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeFactors, NULL, NULL);
-    bufHJMPath = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeHJMPath, NULL, NULL);
-    bufDrifts = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeDrifts, NULL, NULL);
-    bufZ = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeZ, NULL, NULL);
-    bufRandZ = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeRandZ, NULL, NULL);
+    bufYield = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeYield, NULL, NULL);
+    bufForward = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeForward, NULL, NULL);
+    bufTotalDrift = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeTotalDrift, NULL, NULL);
+    bufPayoffDiscountFactors = clCreateBuffer(context, CL_MEM_READ_WRITE, sizePayoffDiscountFactors, NULL, NULL);
+    bufDiscountingRatePath = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeDiscountingRatePath, NULL, NULL);
+    bufSwapRatePath = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeSwapRatePath, NULL, NULL);
+    bufSwapDiscountFactors = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeSwapDiscountFactors, NULL, NULL);
+    bufSwapPayoffs = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeSwapPayoffs, NULL, NULL);
+    bufExpRes = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeExpRes, NULL, NULL);
+    bufFactors = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, sizeFactors, NULL, NULL);
+    bufHJMPath = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeHJMPath, NULL, NULL);
+    bufDrifts = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeDrifts, NULL, NULL);
+    bufZ = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeZ, NULL, NULL);
+    bufRandZ = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeRandZ, NULL, NULL);
 
     // read kernel code
     FILE* fp;
@@ -440,12 +442,14 @@ int main(int argc, char *argv[])
 #endif
 #ifdef ENABLE_CPU
     // Enqueue buffer
-    swaptions = static_cast< parm* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeSwaptions, 0, NULL, NULL, &errcode));
+    swaptions = static_cast< parm* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_FALSE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeSwaptions, 0, NULL, NULL, &errcode));
     PrintIfErrors("clEnqueueMapBuffer", errcode);
-    pdYield = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufYield, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeYield, 0, NULL, NULL, &errcode));
+    pdYield = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufYield, CL_FALSE, CL_MAP_READ, 0, sizeYield, 0, NULL, NULL, &errcode));
     PrintIfErrors("clEnqueueMapBuffer", errcode);
-    pdFactors = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufFactors, CL_TRUE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeFactors, 0, NULL, NULL, &errcode));
+    pdFactors = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufFactors, CL_FALSE, CL_MAP_READ, 0, sizeFactors, 0, NULL, NULL, &errcode));
     PrintIfErrors("clEnqueueMapBuffer", errcode);
+    errcode = clFinish(command_queue);
+    PrintIfErrors("clFinish", errcode);
 #endif
 
     int k;
@@ -500,7 +504,7 @@ int main(int argc, char *argv[])
 #ifdef ENABLE_CPU
     // Iterate through number of interations
     size_t global = nThreads;
-    size_t local = 16;
+    size_t local = local_size;
     // launch the kernel
     errcode = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global, &local, 0, NULL, NULL);
     PrintIfErrors("clEnqueueNDRangeKernel", errcode);
