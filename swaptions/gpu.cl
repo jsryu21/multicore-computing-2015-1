@@ -73,6 +73,8 @@ int HJM_Swaption_Blocking(
         //Simulation Parameters
         long iRndSeed,
         long lTrials,
+        int trial_beg,
+        int trial_end,
         int BLOCK_SIZE,
         int tid,
         FTYPE ddelt,
@@ -117,55 +119,57 @@ __kernel void kernel_func(
     int tid = get_global_id(0);
     int nWorkItems = get_global_size(0);
     FTYPE pdSwaptionPrice[2];
-    int chunksize = nSwaptions/nWorkItems;
-    int beg = tid*chunksize;
-    int end = (tid+1)*chunksize;
-
-    if(tid == nWorkItems - 1) {
-        end = nSwaptions;
+    int swaption_id = (int)((tid * nSwaptions) / nWorkItems);
+    int local_size = nWorkItems / nSwaptions;
+    int local_id = tid % local_size;
+    int chunksize = NUM_TRIALS / local_size;
+    int beg = local_id * chunksize;
+    int end = beg + chunksize;
+    if (local_id == local_size - 1) {
+        end = NUM_TRIALS;
     }
 
-    for(int i=beg; i < end; i++) {
-        int iN = swaptions[i].iN;
-        FTYPE dMaturity = swaptions[i].dMaturity;
-        FTYPE dYears = swaptions[i].dYears;
-        FTYPE ddelt = (FTYPE)(dYears/iN);
-        int iSwapVectorLength = (int)(iN - dMaturity / ddelt + 0.5);
-        int iFactors = swaptions[i].iFactors;
+    int iN = swaptions[swaption_id].iN;
+    FTYPE dMaturity = swaptions[swaption_id].dMaturity;
+    FTYPE dYears = swaptions[swaption_id].dYears;
+    FTYPE ddelt = (FTYPE)(dYears/iN);
+    int iSwapVectorLength = (int)(iN - dMaturity / ddelt + 0.5);
+    int iFactors = swaptions[swaption_id].iFactors;
 
-        int iSuccess = HJM_Swaption_Blocking(
-                pdSwaptionPrice,
-                swaptions[i].dStrike,
-                swaptions[i].dCompounding,
-                dMaturity,
-                swaptions[i].dTenor,
-                swaptions[i].dPaymentInterval,
-                iN,
-                iFactors,
-                dYears,
-                &pdYield[i * iN],
-                &pdForward[i * iN],
-                &pdTotalDrift[i * (iN - 1)],
-                &pdPayoffDiscountFactors[i * (iN * BLOCK_SIZE)],
-                &pdDiscountingRatePath[i * (iN * BLOCK_SIZE)],
-                &pdSwapRatePath[i * (iSwapVectorLength * BLOCK_SIZE)],
-                &pdSwapDiscountFactors[i * (iSwapVectorLength * BLOCK_SIZE)],
-                &pdSwapPayoffs[i * iSwapVectorLength],
-                &pdExpRes[i * ((iN - 1) * BLOCK_SIZE)],
-                &pdFactors[i * iFactors * (iN - 1)],
-                &pdHJMPath[i * iN * (iN * BLOCK_SIZE)],
-                &pdDrifts[i * iFactors * (iN - 1)],
-                &pdZ[i * iFactors * (iN * BLOCK_SIZE)],
-                &pdRandZ[i * iFactors * (iN * BLOCK_SIZE)],
-                100,
-                NUM_TRIALS,
-                BLOCK_SIZE,
-                tid,
-                ddelt,
-                iSwapVectorLength);
-        swaptions[i].dSimSwaptionMeanPrice = pdSwaptionPrice[0];
-        swaptions[i].dSimSwaptionStdError = pdSwaptionPrice[1];
-    }
+    int iSuccess = HJM_Swaption_Blocking(
+            pdSwaptionPrice,
+            swaptions[swaption_id].dStrike,
+            swaptions[swaption_id].dCompounding,
+            dMaturity,
+            swaptions[swaption_id].dTenor,
+            swaptions[swaption_id].dPaymentInterval,
+            iN,
+            iFactors,
+            dYears,
+            &pdYield[swaption_id * iN],
+            &pdForward[swaption_id * iN],
+            &pdTotalDrift[swaption_id * (iN - 1)],
+            &pdPayoffDiscountFactors[swaption_id * (iN * BLOCK_SIZE)],
+            &pdDiscountingRatePath[swaption_id * (iN * BLOCK_SIZE)],
+            &pdSwapRatePath[swaption_id * (iSwapVectorLength * BLOCK_SIZE)],
+            &pdSwapDiscountFactors[swaption_id * (iSwapVectorLength * BLOCK_SIZE)],
+            &pdSwapPayoffs[swaption_id * iSwapVectorLength],
+            &pdExpRes[swaption_id * ((iN - 1) * BLOCK_SIZE)],
+            &pdFactors[swaption_id * iFactors * (iN - 1)],
+            &pdHJMPath[swaption_id * iN * (iN * BLOCK_SIZE)],
+            &pdDrifts[swaption_id * iFactors * (iN - 1)],
+            &pdZ[swaption_id * iFactors * (iN * BLOCK_SIZE)],
+            &pdRandZ[swaption_id * iFactors * (iN * BLOCK_SIZE)],
+            100,
+            NUM_TRIALS,
+            beg,
+            end,
+            BLOCK_SIZE,
+            tid,
+            ddelt,
+            iSwapVectorLength);
+    swaptions[swaption_id].dSimSwaptionMeanPrice = pdSwaptionPrice[0];
+    swaptions[swaption_id].dSimSwaptionStdError = pdSwaptionPrice[1];
 };
 
 // CumNormalInv.cpp
@@ -453,6 +457,8 @@ int HJM_Swaption_Blocking(
         //Simulation Parameters
         long iRndSeed,
         long lTrials,
+        int trial_beg,
+        int trial_end,
         int BLOCK_SIZE,
         int tid,
         FTYPE ddelt,
@@ -527,7 +533,7 @@ int HJM_Swaption_Blocking(
     dSumSquareSimSwaptionPrice = 0.0;
 
     //Simulations begin:
-    for (l=0;l<=lTrials-1;l+=BLOCK_SIZE) {
+    for (l = trial_beg; l < trial_end; l += BLOCK_SIZE) {
         //For each trial a new HJM Path is generated
         // GC: 51% of the time goes here
         iSuccess = HJM_SimPath_Forward_Blocking(pdHJMPath, iN, iFactors, dYears, pdForward, pdTotalDrift,pdFactors, pdZ, pdRandZ, &iRndSeed, BLOCK_SIZE, ddelt);
@@ -567,7 +573,7 @@ int HJM_Swaption_Blocking(
 
             dDiscSwaptionPayoff = dSwaptionPayoff*pdPayoffDiscountFactors[iSwapStartTimeIndex*BLOCK_SIZE + b];
 
-            // accumulate into the aggregating variables =====================
+            // accumulate into the aggregating variables
             dSumSimSwaptionPrice += dDiscSwaptionPayoff;
             dSumSquareSimSwaptionPrice += dDiscSwaptionPayoff*dDiscSwaptionPayoff;
         }
