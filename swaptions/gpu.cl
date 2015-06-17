@@ -30,7 +30,8 @@ int HJM_SimPath_Forward_Blocking(
         __global FTYPE* pdZ,
         __global FTYPE* pdRandZ,
         long* lRndSeed,
-        int BLOCK_SIZE);
+        int BLOCK_SIZE,
+        FTYPE ddelt);
 
 int Discount_Factors_Blocking(__global FTYPE* pdDiscountFactors
         , int iN
@@ -73,7 +74,9 @@ int HJM_Swaption_Blocking(
         long iRndSeed,
         long lTrials,
         int BLOCK_SIZE,
-        int tid);
+        int tid,
+        FTYPE ddelt,
+        int iSwapVectorLength);
 
 // HJM_Securities.h
 int HJM_Yield_to_Forward(
@@ -87,7 +90,8 @@ int HJM_Drifts(
         int iN,
         int iFactors,
         FTYPE dYears,
-        __global FTYPE* pdFactors);
+        __global FTYPE* pdFactors,
+        FTYPE ddelt);
 
 FTYPE dMax( FTYPE dA, FTYPE dB );
 
@@ -156,7 +160,9 @@ __kernel void kernel_func(
                 100,
                 NUM_TRIALS,
                 BLOCK_SIZE,
-                0);
+                tid,
+                ddelt,
+                iSwapVectorLength);
         swaptions[i].dSimSwaptionMeanPrice = pdSwaptionPrice[0];
         swaptions[i].dSimSwaptionStdError = pdSwaptionPrice[1];
     }
@@ -248,7 +254,6 @@ int HJM_Yield_to_Forward(
 {
     //This function computes forward rates from supplied yield rates.
 
-    int iSuccess=0;
     int i;
 
     //forward curve computation
@@ -256,8 +261,8 @@ int HJM_Yield_to_Forward(
     for(i=1;i<=iN-1; ++i){
         pdForward[i] = (i+1)*pdYield[i] - i*pdYield[i-1];	//as per formula
     }
-    iSuccess=1;
-    return iSuccess;
+
+    return 1;
 }
 
 int HJM_Drifts(
@@ -266,13 +271,12 @@ int HJM_Drifts(
         int iN,
         int iFactors,
         FTYPE dYears,
-        __global FTYPE* pdFactors)		//Input factor volatilities
+        __global FTYPE* pdFactors,
+        FTYPE ddelt)		//Input factor volatilities
 {
     //This function computes drift corrections required for each factor for each maturity based on given factor volatilities
 
-    int iSuccess =0;
     int i, j, l; //looping variables
-    FTYPE ddelt = (FTYPE) (dYears/iN);
     FTYPE dSumVol;
 
     //computation of factor drifts for shortest maturity
@@ -300,8 +304,7 @@ int HJM_Drifts(
             pdTotalDrift[i]+= pdDrifts[j * (iN - 1) + i];
     }
 
-    iSuccess=1;
-    return iSuccess;
+    return 1;
 }
 
 int Discount_Factors_Blocking(
@@ -313,8 +316,8 @@ int Discount_Factors_Blocking(
         int BLOCK_SIZE)
 {
     int i,j,b;				//looping variables
-    int iSuccess;			//return variable
 
+    // this ddelt should not be removed!
     FTYPE ddelt;			//HJM time-step length
     ddelt = (FTYPE) (dYears/iN);
 
@@ -334,8 +337,7 @@ int Discount_Factors_Blocking(
         }
     }
 
-    iSuccess = 1;
-    return iSuccess;
+    return 1;
 }
 
 // HJM_SimPath_Forward_Blocking.cpp
@@ -350,16 +352,15 @@ int HJM_SimPath_Forward_Blocking(
         __global FTYPE* pdZ, //vector to store random normals
         __global FTYPE* pdRandZ, //vector to store random normals
         long* lRndSeed,			//Random number seed
-        int BLOCK_SIZE)
+        int BLOCK_SIZE,
+        FTYPE ddelt)
 {
     //This function computes and stores an HJM Path for given inputs
 
-    int iSuccess = 0;
     int i,j,l; //looping variables
     FTYPE dTotalShock; //total shock by which the forward curve is hit at (t, T-t)
-    FTYPE ddelt, sqrt_ddelt; //length of time steps
+    FTYPE sqrt_ddelt; //length of time steps
 
-    ddelt = (FTYPE)(dYears/iN);
     sqrt_ddelt = sqrt(ddelt);
 
     // t=0 forward curve stored iN first row of ppdHJMPath
@@ -415,8 +416,7 @@ int HJM_SimPath_Forward_Blocking(
         }
     }
 
-    iSuccess = 1;
-    return iSuccess;
+    return 1;
 }
 
 // HJM_Swaption_Blocking.cpp
@@ -454,14 +454,15 @@ int HJM_Swaption_Blocking(
         long iRndSeed,
         long lTrials,
         int BLOCK_SIZE,
-        int tid)
+        int tid,
+        FTYPE ddelt,
+        int iSwapVectorLength)
 {
     int iSuccess = 0;
     int i;
     int b; //block looping variable
     long l; //looping variables
 
-    FTYPE ddelt = (FTYPE)(dYears/iN);				//ddelt = HJM matrix time-step width. e.g. if dYears = 5yrs and
     //iN = no. of time points = 10, then ddelt = step length = 0.5yrs
     int iFreqRatio = (int)(dPaymentInterval/ddelt + 0.5);		// = ratio of time gap between swap payments and HJM step-width.
     //e.g. dPaymentInterval = 1 year. ddelt = 0.5year. This implies that a swap
@@ -481,9 +482,6 @@ int HJM_Swaption_Blocking(
     //(1+0.5*k) = exp(K*0.5)
     // => K = (1/0.5)*ln(1+0.5*k)
 
-    //HJM Framework vectors and matrices
-    int iSwapVectorLength;  // Length of the HJM rate path at the time index corresponding to swaption maturity.
-
     int iSwapStartTimeIndex;
     int iSwapTimePoints;
     FTYPE dSwapVectorYears;
@@ -499,8 +497,6 @@ int HJM_Swaption_Blocking(
     // Final returned results
     FTYPE dSimSwaptionMeanPrice;
     FTYPE dSimSwaptionStdError;
-
-    iSwapVectorLength = (int) (iN - dMaturity/ddelt + 0.5);	//This is the length of the HJM rate path at the time index
 
     iSwapStartTimeIndex = (int) (dMaturity/ddelt + 0.5);	//Swap starts at swaption maturity
     iSwapTimePoints = (int) (dTenor/ddelt + 0.5);			//Total HJM time points corresponding to the swap's tenor
@@ -523,7 +519,7 @@ int HJM_Swaption_Blocking(
         return iSuccess;
 
     //computation of drifts from factor volatilities
-    iSuccess = HJM_Drifts(pdTotalDrift, pdDrifts, iN, iFactors, dYears, pdFactors);
+    iSuccess = HJM_Drifts(pdTotalDrift, pdDrifts, iN, iFactors, dYears, pdFactors, ddelt);
     if (iSuccess!=1)
         return iSuccess;
 
@@ -534,7 +530,7 @@ int HJM_Swaption_Blocking(
     for (l=0;l<=lTrials-1;l+=BLOCK_SIZE) {
         //For each trial a new HJM Path is generated
         // GC: 51% of the time goes here
-        iSuccess = HJM_SimPath_Forward_Blocking(pdHJMPath, iN, iFactors, dYears, pdForward, pdTotalDrift,pdFactors, pdZ, pdRandZ, &iRndSeed, BLOCK_SIZE);
+        iSuccess = HJM_SimPath_Forward_Blocking(pdHJMPath, iN, iFactors, dYears, pdForward, pdTotalDrift,pdFactors, pdZ, pdRandZ, &iRndSeed, BLOCK_SIZE, ddelt);
         if (iSuccess!=1)
             return iSuccess;
 
