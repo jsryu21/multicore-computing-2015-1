@@ -8,6 +8,7 @@
 #include <math.h>
 #include <iostream>
 #include <sstream>
+#include <sys/time.h>
 
 #include "nr_routines.h"
 #include "HJM.h"
@@ -171,12 +172,19 @@ void PrintIfErrors(const std::string& err_message, const cl_int errcode) {
 }
 #endif
 
+static double get_time() {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (double)tv.tv_sec + (double)1.0e-6*tv.tv_usec;
+}
+
 //Please note: Whenever we type-cast to (int), we add 0.5 to ensure that the value is rounded to the correct number. 
 //For instance, if X/Y = 0.999 then (int) (X/Y) will equal 0 and not 1 (as (int) rounds down).
 //Adding 0.5 ensures that this does not happen. Therefore we use (int) (X/Y + 0.5); instead of (int) (X/Y);
 
 int main(int argc, char *argv[])
 {
+    double start_time = get_time();
     int iSuccess = 0;
     int i,j;
 
@@ -492,7 +500,7 @@ int main(int argc, char *argv[])
 #endif
 #ifdef ENABLE_CPU
     // Iterate through number of interations
-    size_t global = 64;
+    size_t global = nThreads;
     size_t local = 16;
     // launch the kernel
     errcode = clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global, &local, 0, NULL, NULL);
@@ -527,6 +535,9 @@ int main(int argc, char *argv[])
     free(pdYield);
 #endif
     free(swaptions);
+
+    double end_time = get_time();
+    printf("Time spent : %lf sec\n", end_time - start_time);
 
     return iSuccess;
 }
