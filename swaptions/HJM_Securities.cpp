@@ -478,7 +478,6 @@ int main(int argc, char *argv[])
             for(j=0;j<=swaptions[i].iN-2;++j)
                 pdFactors[i * iFactors * (iN - 1) + k * (iN - 1) + j] = factors[k][j];
 #endif
-        printf("host - Id %d, iN %d, iFactors %d, dYears %f, dStrike %f, dCompounding %f, dMaturity %f, dTenor %f, dPaymentInterval %f\n", swaptions[i].Id, swaptions[i].iN, swaptions[i].iFactors, swaptions[i].dYears, swaptions[i].dStrike, swaptions[i].dCompounding, swaptions[i].dMaturity, swaptions[i].dTenor, swaptions[i].dPaymentInterval);
     }
 
     // **********Calling the Swaption Pricing Routine*****************
@@ -518,7 +517,6 @@ int main(int argc, char *argv[])
     for (i = 0; i < nSwaptions; i++) {
         fprintf(stderr,"Swaption%d: [SwaptionPrice: %.10lf StdError: %.10lf] \n", 
                 i, swaptions[i].dSimSwaptionMeanPrice, swaptions[i].dSimSwaptionStdError);
-
     }
 
 #if defined(ENABLE_SEQ) || defined(ENABLE_THREAD)
