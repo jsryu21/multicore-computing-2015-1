@@ -115,7 +115,9 @@ __kernel void kernel_func(
         __global FTYPE* pdHJMPath,
         __global FTYPE* pdDrifts,
         __global FTYPE* pdZ,
-        __global FTYPE* pdRandZ) {
+        __global FTYPE* pdRandZ,
+        __global FTYPE* pdSumSimSwaptionPrice,
+        __global FTYPE* pdSumSquareSimSwaptionPrice) {
     int tid = get_global_id(0);
     int nWorkItems = get_global_size(0);
     FTYPE pdSwaptionPrice[2];
@@ -168,8 +170,8 @@ __kernel void kernel_func(
             tid,
             ddelt,
             iSwapVectorLength);
-    swaptions[swaption_id].dSimSwaptionMeanPrice = pdSwaptionPrice[0];
-    swaptions[swaption_id].dSimSwaptionStdError = pdSwaptionPrice[1];
+    pdSumSimSwaptionPrice[swaption_id * local_size + local_id] = pdSwaptionPrice[0];
+    pdSumSquareSimSwaptionPrice[swaption_id * local_size + local_id] = pdSwaptionPrice[1];
 };
 
 // CumNormalInv.cpp
@@ -500,10 +502,6 @@ int HJM_Swaption_Blocking(
     FTYPE dSumSimSwaptionPrice;
     FTYPE dSumSquareSimSwaptionPrice;
 
-    // Final returned results
-    FTYPE dSimSwaptionMeanPrice;
-    FTYPE dSimSwaptionStdError;
-
     iSwapStartTimeIndex = (int) (dMaturity/ddelt + 0.5);	//Swap starts at swaption maturity
     iSwapTimePoints = (int) (dTenor/ddelt + 0.5);			//Total HJM time points corresponding to the swap's tenor
     dSwapVectorYears = (FTYPE) (iSwapVectorLength*ddelt);
@@ -579,14 +577,9 @@ int HJM_Swaption_Blocking(
         }
     }
 
-    // Simulation Results Stored
-    dSimSwaptionMeanPrice = dSumSimSwaptionPrice/lTrials;
-    dSimSwaptionStdError = sqrt((dSumSquareSimSwaptionPrice-dSumSimSwaptionPrice*dSumSimSwaptionPrice/lTrials)/
-            (lTrials-1.0))/sqrt((FTYPE)lTrials);
-
     //results returned
-    pdSwaptionPrice[0] = dSimSwaptionMeanPrice;
-    pdSwaptionPrice[1] = dSimSwaptionStdError;
+    pdSwaptionPrice[0] = dSumSimSwaptionPrice;
+    pdSwaptionPrice[1] = dSumSquareSimSwaptionPrice;
 
     iSuccess = 1;
     return iSuccess;

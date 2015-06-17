@@ -39,10 +39,13 @@ parm *swaptions;
 #if defined(ENABLE_SEQ) || defined(ENABLE_THREAD)
 FTYPE** ppdYield;
 FTYPE*** pppdFactors;
-#endif
-#if defined(ENABLE_CPU) || defined(ENABLE_GPU)
+#elif defined(ENABLE_CPU) || defined(ENABLE_GPU)
 FTYPE* pdYield;
 FTYPE* pdFactors;
+#if defined(ENABLE_GPU)
+FTYPE* pdSumSimSwaptionPrice;
+FTYPE* pdSumSquareSimSwaptionPrice;
+#endif
 #endif
 
 static const int MAX_SOURCE_SIZE = 0x100000;
@@ -218,7 +221,6 @@ static void checkErrors(cl_int status, char *label, int line)
             fprintf(stderr, "OpenCL error (at %s, line %d): CL_PROFILING_INFO_NOT_AVAILABLE\n", label, line);
             break;
     }
-    exit(status);
 }
 #endif
 
@@ -258,20 +260,15 @@ int main(int argc, char *argv[])
         }
     }
 
-    if(nSwaptions < nThreads) {
-        nSwaptions = nThreads; 
-    }
-
     printf("Number of Simulations: %d,  Number of threads: %d Number of swaptions: %d\n", NUM_TRIALS, nThreads, nSwaptions);
 
-#ifdef ENABLE_SEQ
+#if defined(ENABLE_SEQ)
     if (nThreads != 1)
     {
         fprintf(stderr,"Number of threads must be 1 (serial version)\n");
         exit(1);
     }
-#endif
-#ifdef ENABLE_THREAD
+#elif defined(ENABLE_THREAD)
     pthread_t      *threads;
     pthread_attr_t  pthread_custom_attr;
 
@@ -288,8 +285,7 @@ int main(int argc, char *argv[])
         fprintf(stderr,"Number of threads must be between 1 and %d.\n", MAX_THREAD);
         exit(1);
     }
-#endif
-#if defined(ENABLE_CPU) || defined(ENABLE_GPU)
+#elif defined(ENABLE_CPU) || defined(ENABLE_GPU)
     // CL code
     cl_platform_id platform;
     cl_device_id device;
@@ -308,6 +304,10 @@ int main(int argc, char *argv[])
     cl_mem bufSwapDiscountFactors;
     cl_mem bufSwapPayoffs;
     cl_mem bufExpRes;
+#if defined(ENABLE_GPU)
+    cl_mem bufSumSimSwaptionPrice;
+    cl_mem bufSumSquareSimSwaptionPrice;
+#endif
 
     // matrix
     cl_mem bufFactors;
@@ -335,6 +335,12 @@ int main(int argc, char *argv[])
     size_t sizeSwapPayoffs = nSwaptions * iSwapVectorLength * sizeof(FTYPE);
     size_t sizeExpRes = nSwaptions * ((iN - 1) * BLOCK_SIZE_ARG) * sizeof(FTYPE);
 
+#if defined(ENABLE_GPU)
+    int local_size = nThreads / nSwaptions;
+    size_t sizeSumSimSwaptionPrice = nThreads * sizeof(FTYPE);
+    size_t sizeSumSquareSimSwaptionPrice = nThreads * sizeof(FTYPE);
+#endif
+
     // matrix
     size_t sizeFactors = nSwaptions * iFactors * (iN - 1) * sizeof(FTYPE);
     size_t sizeHJMPath = nSwaptions * iN * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
@@ -342,40 +348,84 @@ int main(int argc, char *argv[])
     size_t sizeZ = nSwaptions * iFactors * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
     size_t sizeRandZ = nSwaptions * iFactors * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
 
-    clGetPlatformIDs(1, &platform, NULL);
-#ifdef ENABLE_CPU
-    clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 1, &device, NULL);
+    checkErrors(clGetPlatformIDs(1, &platform, NULL), (char*)"clGetPlatformIDs", __LINE__);
+
+#if defined(ENABLE_CPU)
+    checkErrors(clGetDeviceIDs(platform, CL_DEVICE_TYPE_CPU, 1, &device, NULL), (char*)"clGetDeviceIDs", __LINE__);
+#elif defined(ENABLE_GPU)
+    checkErrors(clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, NULL), (char*)"clGetDeviceIDs", __LINE__);
 #endif
-#ifdef ENABLE_GPU
-    clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, NULL);
+
+    int errcode;
+    context = clCreateContext(0, 1, &device, NULL, NULL, &errcode);
+    checkErrors(errcode, (char*)"clCreateContext", __LINE__);
+    command_queue = clCreateCommandQueue(context, device, 0, &errcode);
+    checkErrors(errcode, (char*)"clCreateCommandQueue", __LINE__);
+
+#if defined(ENABLE_CPU)
+    bufferSwaptions = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeSwaptions, NULL, &errcode);
+#elif defined(ENABLE_GPU)
+    bufferSwaptions = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeSwaptions, NULL, &errcode);
 #endif
-    context = clCreateContext(0, 1, &device, NULL, NULL, NULL);
-    command_queue = clCreateCommandQueue(context, device, 0, NULL);
-    bufferSwaptions = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeSwaptions, NULL, NULL);
-    bufYield = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeYield, NULL, NULL);
-    bufFactors = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, sizeFactors, NULL, NULL);
-    bufForward = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeForward, NULL, NULL);
-    bufTotalDrift = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeTotalDrift, NULL, NULL);
-    bufPayoffDiscountFactors = clCreateBuffer(context, CL_MEM_READ_WRITE, sizePayoffDiscountFactors, NULL, NULL);
-    bufDiscountingRatePath = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeDiscountingRatePath, NULL, NULL);
-    bufSwapRatePath = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeSwapRatePath, NULL, NULL);
-    bufSwapDiscountFactors = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeSwapDiscountFactors, NULL, NULL);
-    bufSwapPayoffs = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeSwapPayoffs, NULL, NULL);
-    bufExpRes = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeExpRes, NULL, NULL);
-    bufFactors = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, sizeFactors, NULL, NULL);
-    bufHJMPath = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeHJMPath, NULL, NULL);
-    bufDrifts = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeDrifts, NULL, NULL);
-    bufZ = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeZ, NULL, NULL);
-    bufRandZ = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeRandZ, NULL, NULL);
+
+    checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
+
+#if defined(ENABLE_CPU)
+    bufYield = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, sizeYield, NULL, &errcode);
+#elif defined(ENABLE_GPU)
+    bufYield = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeYield, NULL, &errcode);
+#endif
+
+    checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
+    bufForward = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeForward, NULL, &errcode);
+    checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
+    bufTotalDrift = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeTotalDrift, NULL, &errcode);
+    checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
+    bufPayoffDiscountFactors = clCreateBuffer(context, CL_MEM_READ_WRITE, sizePayoffDiscountFactors, NULL, &errcode);
+    checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
+    bufDiscountingRatePath = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeDiscountingRatePath, NULL, &errcode);
+    checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
+    bufSwapRatePath = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeSwapRatePath, NULL, &errcode);
+    checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
+    bufSwapDiscountFactors = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeSwapDiscountFactors, NULL, &errcode);
+    checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
+    bufSwapPayoffs = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeSwapPayoffs, NULL, &errcode);
+    checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
+    bufExpRes = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeExpRes, NULL, &errcode);
+    checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
+
+#if defined(ENABLE_GPU)
+    bufSumSimSwaptionPrice = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeSumSimSwaptionPrice, NULL, &errcode);
+    checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
+    bufSumSquareSimSwaptionPrice = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeSumSquareSimSwaptionPrice, NULL, &errcode);
+    checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
+#endif
+
+#if defined(ENABLE_CPU)
+    bufFactors = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, sizeFactors, NULL, &errcode);
+#elif defined(ENABLE_GPU)
+    bufFactors = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeFactors, NULL, &errcode);
+#endif
+
+    checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
+    bufHJMPath = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeHJMPath, NULL, &errcode);
+    checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
+    bufDrifts = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeDrifts, NULL, &errcode);
+    checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
+    bufZ = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeZ, NULL, &errcode);
+    checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
+    bufRandZ = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeRandZ, NULL, &errcode);
+    checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
 
     // read kernel code
     FILE* fp;
-#ifdef ENABLE_CPU
+
+#if defined(ENABLE_CPU)
     const char fileName[] = "./cpu.cl";
-#endif
-#ifdef ENABLE_GPU
+#elif defined(ENABLE_GPU)
     const char fileName[] = "./gpu.cl";
 #endif
+
     size_t source_size;
     char* source_str;
     fp = fopen(fileName, "r");
@@ -388,7 +438,6 @@ int main(int argc, char *argv[])
     fclose(fp);
 
     // create kernel
-    int errcode;
     program = clCreateProgramWithSource(context, 1, (const char**)&source_str, &source_size, &errcode);
     checkErrors(errcode, (char*)"clCreateProgramWithSource", __LINE__);
     checkErrors(clBuildProgram(program, 1, &device, NULL, NULL, NULL), (char*)"clBuildProgram", __LINE__);
@@ -426,6 +475,12 @@ int main(int argc, char *argv[])
     checkErrors(clSetKernelArg(kernel, 15, sizeof(cl_mem), (void*)&bufDrifts), (char*)"clSetKernelArg", __LINE__);
     checkErrors(clSetKernelArg(kernel, 16, sizeof(cl_mem), (void*)&bufZ), (char*)"clSetKernelArg", __LINE__);
     checkErrors(clSetKernelArg(kernel, 17, sizeof(cl_mem), (void*)&bufRandZ), (char*)"clSetKernelArg", __LINE__);
+
+#ifdef ENABLE_GPU
+    checkErrors(clSetKernelArg(kernel, 18, sizeof(cl_mem), (void*)&bufSumSimSwaptionPrice), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 19, sizeof(cl_mem), (void*)&bufSumSquareSimSwaptionPrice), (char*)"clSetKernelArg", __LINE__);
+#endif
+
 #endif
 
     // initialize input dataset
@@ -473,16 +528,19 @@ int main(int argc, char *argv[])
         ppdYield[i] = dvector(0, iN - 1);
         pppdFactors[i] = dmatrix(0, iFactors - 1, 0, iN - 2);
     }
-#endif
-#if defined(ENABLE_CPU) || defined(ENABLE_GPU)
+#elif defined(ENABLE_CPU)
     // Enqueue buffer
     swaptions = static_cast< parm* >(clEnqueueMapBuffer(command_queue, bufferSwaptions, CL_FALSE, CL_MAP_READ | CL_MAP_WRITE, 0, sizeSwaptions, 0, NULL, NULL, &errcode));
     checkErrors(errcode, (char*)"clEnqueueMapBuffer", __LINE__);
-    pdYield = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufYield, CL_FALSE, CL_MAP_READ, 0, sizeYield, 0, NULL, NULL, &errcode));
+    pdYield = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufYield, CL_FALSE, CL_MAP_WRITE, 0, sizeYield, 0, NULL, NULL, &errcode));
     checkErrors(errcode, (char*)"clEnqueueMapBuffer", __LINE__);
-    pdFactors = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufFactors, CL_FALSE, CL_MAP_READ, 0, sizeFactors, 0, NULL, NULL, &errcode));
+    pdFactors = static_cast< FTYPE* >(clEnqueueMapBuffer(command_queue, bufFactors, CL_FALSE, CL_MAP_WRITE, 0, sizeFactors, 0, NULL, NULL, &errcode));
     checkErrors(errcode, (char*)"clEnqueueMapBuffer", __LINE__);
     checkErrors(clFinish(command_queue), (char*)"clFinish", __LINE__);
+#elif defined(ENABLE_GPU)
+    swaptions = static_cast< parm* >(malloc(sizeSwaptions));
+    pdYield = static_cast< FTYPE* >(malloc(sizeYield));
+    pdFactors = static_cast< FTYPE* >(malloc(sizeFactors));
 #endif
 
     int k;
@@ -505,8 +563,7 @@ int main(int argc, char *argv[])
         for(k=0;k<=swaptions[i].iFactors-1;++k)
             for(j=0;j<=swaptions[i].iN-2;++j)
                 pppdFactors[i][k][j] = factors[k][j];
-#endif
-#if defined(ENABLE_CPU) || defined(ENABLE_GPU)
+#elif defined(ENABLE_CPU) || defined(ENABLE_GPU)
         pdYield[i * iN] = .1;
         for(j=1;j<=swaptions[i].iN-1;++j)
             pdYield[i * iN + j] = pdYield[i * iN + j - 1]+.005;
@@ -516,6 +573,13 @@ int main(int argc, char *argv[])
                 pdFactors[i * iFactors * (iN - 1) + k * (iN - 1) + j] = factors[k][j];
 #endif
     }
+
+#ifdef ENABLE_GPU
+    checkErrors(clEnqueueWriteBuffer(command_queue, bufferSwaptions, CL_FALSE, 0, sizeSwaptions, swaptions, 0, NULL, NULL), (char*)"clEnqueueWriteBuffer", __LINE__);
+    checkErrors(clEnqueueWriteBuffer(command_queue, bufYield, CL_FALSE, 0, sizeYield, pdYield, 0, NULL, NULL), (char*)"clEnqueueWriteBuffer", __LINE__);
+    checkErrors(clEnqueueWriteBuffer(command_queue, bufFactors, CL_FALSE, 0, sizeFactors, pdFactors, 0, NULL, NULL), (char*)"clEnqueueWriteBuffer", __LINE__);
+    checkErrors(clFinish(command_queue), (char*)"clFinish", __LINE__);
+#endif
 
     // **********Calling the Swaption Pricing Routine*****************
 #ifdef ENABLE_SEQ
@@ -541,6 +605,26 @@ int main(int argc, char *argv[])
     // launch the kernel
     checkErrors(clEnqueueNDRangeKernel(command_queue, kernel, 1, NULL, &global, &local, 0, NULL, NULL), (char*)"clEnqueueNDRangeKernel", __LINE__);
     checkErrors(clFinish(command_queue), (char*)"clFinish", __LINE__);
+#endif
+
+#ifdef ENABLE_GPU
+    pdSumSimSwaptionPrice = static_cast< FTYPE* >(malloc(sizeSumSimSwaptionPrice));
+    pdSumSquareSimSwaptionPrice = static_cast< FTYPE* >(malloc(sizeSumSquareSimSwaptionPrice));
+    checkErrors(clEnqueueReadBuffer(command_queue, bufSumSimSwaptionPrice, CL_FALSE, 0, sizeSumSimSwaptionPrice, pdSumSimSwaptionPrice, 0, NULL, NULL), (char*)"clEnqueueReadBuffer", __LINE__);
+    checkErrors(clEnqueueReadBuffer(command_queue, bufSumSquareSimSwaptionPrice, CL_FALSE, 0, sizeSumSquareSimSwaptionPrice, pdSumSquareSimSwaptionPrice, 0, NULL, NULL), (char*)"clEnqueueReadBuffer", __LINE__);
+    checkErrors(clFinish(command_queue), (char*)"clFinish", __LINE__);
+
+    for (i = 0; i < nSwaptions; ++i) {
+        FTYPE sum = 0;
+        FTYPE sumSquare = 0;
+        for (j = 0; j < local_size; ++j) {
+            sum += pdSumSimSwaptionPrice[i * local_size + j];
+            sumSquare += pdSumSquareSimSwaptionPrice[i * local_size + j];
+        }
+        swaptions[i].dSimSwaptionMeanPrice = sum / NUM_TRIALS;
+        swaptions[i].dSimSwaptionStdError = sqrt((sumSquare-sum*sum/NUM_TRIALS)/
+                (NUM_TRIALS-1.0))/sqrt((FTYPE)NUM_TRIALS);
+    }
 #endif
 
     for (i = 0; i < nSwaptions; i++) {
