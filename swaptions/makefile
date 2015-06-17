@@ -1,6 +1,6 @@
 DEF =
 INCLUDE =
-CXXFLAGS = -pg -O3 -lm -mfma
+CXXFLAGS = -O3 -lm -mfma
 
 EXEC = swaptions
 EXEC_PTHREAD = swaptions_pthread
