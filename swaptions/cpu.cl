@@ -254,7 +254,6 @@ int HJM_Yield_to_Forward(
 {
     //This function computes forward rates from supplied yield rates.
 
-    int iSuccess=0;
     int i;
 
     //forward curve computation
@@ -262,8 +261,8 @@ int HJM_Yield_to_Forward(
     for(i=1;i<=iN-1; ++i){
         pdForward[i] = (i+1)*pdYield[i] - i*pdYield[i-1];	//as per formula
     }
-    iSuccess=1;
-    return iSuccess;
+
+    return 1;
 }
 
 int HJM_Drifts(
@@ -277,7 +276,6 @@ int HJM_Drifts(
 {
     //This function computes drift corrections required for each factor for each maturity based on given factor volatilities
 
-    int iSuccess =0;
     int i, j, l; //looping variables
     FTYPE dSumVol;
 
@@ -306,8 +304,7 @@ int HJM_Drifts(
             pdTotalDrift[i]+= pdDrifts[j * (iN - 1) + i];
     }
 
-    iSuccess=1;
-    return iSuccess;
+    return 1;
 }
 
 int Discount_Factors_Blocking(
@@ -319,8 +316,8 @@ int Discount_Factors_Blocking(
         int BLOCK_SIZE)
 {
     int i,j,b;				//looping variables
-    int iSuccess;			//return variable
 
+    // this ddelt should not be removed!
     FTYPE ddelt;			//HJM time-step length
     ddelt = (FTYPE) (dYears/iN);
 
@@ -340,8 +337,7 @@ int Discount_Factors_Blocking(
         }
     }
 
-    iSuccess = 1;
-    return iSuccess;
+    return 1;
 }
 
 // HJM_SimPath_Forward_Blocking.cpp
@@ -361,7 +357,6 @@ int HJM_SimPath_Forward_Blocking(
 {
     //This function computes and stores an HJM Path for given inputs
 
-    int iSuccess = 0;
     int i,j,l; //looping variables
     FTYPE dTotalShock; //total shock by which the forward curve is hit at (t, T-t)
     FTYPE sqrt_ddelt; //length of time steps
@@ -421,8 +416,7 @@ int HJM_SimPath_Forward_Blocking(
         }
     }
 
-    iSuccess = 1;
-    return iSuccess;
+    return 1;
 }
 
 // HJM_Swaption_Blocking.cpp
