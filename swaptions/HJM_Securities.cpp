@@ -42,10 +42,6 @@ FTYPE*** pppdFactors;
 #elif defined(ENABLE_CPU) || defined(ENABLE_GPU)
 FTYPE* pdYield;
 FTYPE* pdFactors;
-#if defined(ENABLE_GPU)
-FTYPE* pdSumSimSwaptionPrice;
-FTYPE* pdSumSquareSimSwaptionPrice;
-#endif
 #endif
 
 static const int MAX_SOURCE_SIZE = 0x100000;
@@ -598,8 +594,8 @@ int main(int argc, char *argv[])
 #endif
 
 #if defined(ENABLE_GPU)
-    pdSumSimSwaptionPrice = static_cast< FTYPE* >(malloc(sizeSumSimSwaptionPrice));
-    pdSumSquareSimSwaptionPrice = static_cast< FTYPE* >(malloc(sizeSumSquareSimSwaptionPrice));
+    FTYPE* pdSumSimSwaptionPrice = static_cast< FTYPE* >(malloc(sizeSumSimSwaptionPrice));
+    FTYPE* pdSumSquareSimSwaptionPrice = static_cast< FTYPE* >(malloc(sizeSumSquareSimSwaptionPrice));
     checkErrors(clEnqueueReadBuffer(command_queue, bufSumSimSwaptionPrice, CL_FALSE, 0, sizeSumSimSwaptionPrice, pdSumSimSwaptionPrice, 0, NULL, NULL), (char*)"clEnqueueReadBuffer", __LINE__);
     checkErrors(clEnqueueReadBuffer(command_queue, bufSumSquareSimSwaptionPrice, CL_FALSE, 0, sizeSumSquareSimSwaptionPrice, pdSumSquareSimSwaptionPrice, 0, NULL, NULL), (char*)"clEnqueueReadBuffer", __LINE__);
     checkErrors(clFinish(command_queue), (char*)"clFinish", __LINE__);
@@ -637,6 +633,22 @@ int main(int argc, char *argv[])
     free(pppdFactors);
     free(ppdYield);
 #elif defined(ENABLE_CPU) || defined(ENABLE_GPU)
+    clReleaseMemObject(bufferSwaptions);
+    clReleaseMemObject(bufYield);
+    clReleaseMemObject(bufForward);
+    clReleaseMemObject(bufTotalDrift);
+    clReleaseMemObject(bufPayoffDiscountFactors);
+    clReleaseMemObject(bufDiscountingRatePath);
+    clReleaseMemObject(bufSwapRatePath);
+    clReleaseMemObject(bufSwapDiscountFactors);
+    clReleaseMemObject(bufSwapPayoffs);
+#if defined(ENABLE_GPU)
+    clReleaseMemObject(bufSumSimSwaptionPrice);
+    clReleaseMemObject(bufSumSquareSimSwaptionPrice);
+#endif
+    clReleaseMemObject(bufFactors);
+    clReleaseMemObject(bufHJMPath);
+    clReleaseMemObject(bufDrifts);
     free(pdFactors);
     free(pdYield);
 #endif
