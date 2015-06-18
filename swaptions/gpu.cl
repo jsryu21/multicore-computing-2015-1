@@ -454,7 +454,7 @@ int HJM_Swaption_Blocking(
     int iSuccess = 0;
     int i;
     int b; //block looping variable
-    long l; //looping variables
+    int l; //looping variables
 
     //iN = no. of time points = 10, then ddelt = step length = 0.5yrs
     int iFreqRatio = (int)(dPaymentInterval/ddelt + 0.5);		// = ratio of time gap between swap payments and HJM step-width.
@@ -517,44 +517,45 @@ int HJM_Swaption_Blocking(
 
     //Simulations begin:
     for (l = trial_beg; l < trial_end; l += BLOCK_SIZE) {
+        int gap = min(trial_end - l, BLOCK_SIZE);
         //For each trial a new HJM Path is generated
         // GC: 51% of the time goes here
-        iSuccess = HJM_SimPath_Forward_Blocking(pdHJMPath, iN, iFactors, dYears, pdForward, pdTotalDrift,pdFactors, pdZ, &iRndSeed, BLOCK_SIZE, ddelt);
+        iSuccess = HJM_SimPath_Forward_Blocking(pdHJMPath, iN, iFactors, dYears, pdForward, pdTotalDrift,pdFactors, pdZ, &iRndSeed, gap, ddelt);
         if (iSuccess!=1)
             return iSuccess;
 
         //now we compute the discount factor vector
 
         for(i=0;i<=iN-1;++i){
-            for(b=0;b<=BLOCK_SIZE-1;b++){
-                pdDiscountingRatePath[BLOCK_SIZE*i + b] = pdHJMPath[i * (iN * BLOCK_SIZE) + b];
+            for(b=0;b<=gap-1;b++){
+                pdDiscountingRatePath[gap*i + b] = pdHJMPath[i * (iN * gap) + b];
             }
         }
         // 15% of the time goes here
-        iSuccess = Discount_Factors_Blocking(pdPayoffDiscountFactors, iN, dYears, pdDiscountingRatePath, pdExpRes, BLOCK_SIZE);
+        iSuccess = Discount_Factors_Blocking(pdPayoffDiscountFactors, iN, dYears, pdDiscountingRatePath, pdExpRes, gap);
 
         if (iSuccess!=1)
             return iSuccess;
 
         //now we compute discount factors along the swap path
         for (i=0;i<=iSwapVectorLength-1;++i){
-            for(b=0;b<BLOCK_SIZE;b++){
-                pdSwapRatePath[i*BLOCK_SIZE + b] = pdHJMPath[iSwapStartTimeIndex * (iN * BLOCK_SIZE) + i*BLOCK_SIZE + b];
+            for(b=0;b<gap;b++){
+                pdSwapRatePath[i*gap + b] = pdHJMPath[iSwapStartTimeIndex * (iN * gap) + i*gap + b];
             }
         }
-        iSuccess = Discount_Factors_Blocking(pdSwapDiscountFactors, iSwapVectorLength, dSwapVectorYears, pdSwapRatePath, pdExpRes, BLOCK_SIZE);
+        iSuccess = Discount_Factors_Blocking(pdSwapDiscountFactors, iSwapVectorLength, dSwapVectorYears, pdSwapRatePath, pdExpRes, gap);
         if (iSuccess!=1)
             return iSuccess;
 
         // Simulation
-        for (b=0;b<BLOCK_SIZE;b++){
+        for (b=0;b<gap;b++){
             dFixedLegValue = 0.0;
             for (i=0;i<=iSwapVectorLength-1;++i){
-                dFixedLegValue += pdSwapPayoffs[i]*pdSwapDiscountFactors[i*BLOCK_SIZE + b];
+                dFixedLegValue += pdSwapPayoffs[i]*pdSwapDiscountFactors[i*gap + b];
             }
             dSwaptionPayoff = dMax(dFixedLegValue - 1.0, 0);
 
-            dDiscSwaptionPayoff = dSwaptionPayoff*pdPayoffDiscountFactors[iSwapStartTimeIndex*BLOCK_SIZE + b];
+            dDiscSwaptionPayoff = dSwaptionPayoff*pdPayoffDiscountFactors[iSwapStartTimeIndex*gap + b];
 
             // accumulate into the aggregating variables
             dSumSimSwaptionPrice += dDiscSwaptionPayoff;

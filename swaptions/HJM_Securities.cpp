@@ -334,7 +334,6 @@ int main(int argc, char *argv[])
     size_t sizeExpRes = nSwaptions * ((iN - 1) * BLOCK_SIZE_ARG) * sizeof(FTYPE);
 
 #if defined(ENABLE_GPU)
-    int local_size = nThreads / nSwaptions;
     size_t sizeSumSimSwaptionPrice = nThreads * sizeof(FTYPE);
     size_t sizeSumSquareSimSwaptionPrice = nThreads * sizeof(FTYPE);
 #endif
