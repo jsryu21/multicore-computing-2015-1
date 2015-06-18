@@ -312,7 +312,6 @@ int main(int argc, char *argv[])
     cl_mem bufFactors;
     cl_mem bufHJMPath;
     cl_mem bufDrifts;
-    cl_mem bufZ;
 
     cl_kernel kernel;
     size_t sizeSwaptions = nSwaptions * sizeof(parm);
@@ -342,7 +341,7 @@ int main(int argc, char *argv[])
     size_t sizeFactors = nSwaptions * iFactors * (iN - 1) * sizeof(FTYPE);
     size_t sizeHJMPath = nSwaptions * iN * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
     size_t sizeDrifts = nSwaptions * iFactors * (iN - 1) * sizeof(FTYPE);
-    size_t sizeZ = nSwaptions * iFactors * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeZ = iFactors * iN * BLOCK_SIZE_ARG * sizeof(FTYPE);
 
     checkErrors(clGetPlatformIDs(1, &platform, NULL), (char*)"clGetPlatformIDs", __LINE__);
 
@@ -408,8 +407,6 @@ int main(int argc, char *argv[])
     checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
     bufDrifts = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeDrifts, NULL, &errcode);
     checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
-    bufZ = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeZ, NULL, &errcode);
-    checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
 
     // read kernel code
     FILE* fp;
@@ -431,10 +428,14 @@ int main(int argc, char *argv[])
     source_size = fread(source_str, 1, MAX_SOURCE_SIZE, fp);
     fclose(fp);
 
+    std::stringstream ss;
+    ss << "-D SIZE_Z=";
+    ss << sizeZ;
+
     // create kernel
     program = clCreateProgramWithSource(context, 1, (const char**)&source_str, &source_size, &errcode);
     checkErrors(errcode, (char*)"clCreateProgramWithSource", __LINE__);
-    checkErrors(clBuildProgram(program, 1, &device, NULL, NULL, NULL), (char*)"clBuildProgram", __LINE__);
+    checkErrors(clBuildProgram(program, 1, &device, ss.str().c_str(), NULL, NULL), (char*)"clBuildProgram", __LINE__);
 
     size_t log_size;
     // First call to know the proper size
@@ -467,11 +468,10 @@ int main(int argc, char *argv[])
     checkErrors(clSetKernelArg(kernel, 13, sizeof(cl_mem), (void*)&bufFactors), (char*)"clSetKernelArg", __LINE__);
     checkErrors(clSetKernelArg(kernel, 14, sizeof(cl_mem), (void*)&bufHJMPath), (char*)"clSetKernelArg", __LINE__);
     checkErrors(clSetKernelArg(kernel, 15, sizeof(cl_mem), (void*)&bufDrifts), (char*)"clSetKernelArg", __LINE__);
-    checkErrors(clSetKernelArg(kernel, 16, sizeof(cl_mem), (void*)&bufZ), (char*)"clSetKernelArg", __LINE__);
 
 #ifdef ENABLE_GPU
-    checkErrors(clSetKernelArg(kernel, 17, sizeof(cl_mem), (void*)&bufSumSimSwaptionPrice), (char*)"clSetKernelArg", __LINE__);
-    checkErrors(clSetKernelArg(kernel, 18, sizeof(cl_mem), (void*)&bufSumSquareSimSwaptionPrice), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 16, sizeof(cl_mem), (void*)&bufSumSimSwaptionPrice), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 17, sizeof(cl_mem), (void*)&bufSumSquareSimSwaptionPrice), (char*)"clSetKernelArg", __LINE__);
 #endif
 
 #endif

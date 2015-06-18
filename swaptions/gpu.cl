@@ -27,7 +27,6 @@ int HJM_SimPath_Forward_Blocking(
         __global FTYPE* pdForward,
         __global FTYPE* pdTotalDrift,
         __global FTYPE* pdFactors,
-        __global FTYPE* pdZ,
         long* lRndSeed,
         int BLOCK_SIZE,
         FTYPE ddelt);
@@ -67,7 +66,6 @@ int HJM_Swaption_Blocking(
         __global FTYPE* pdFactors,
         __global FTYPE* pdHJMPath,
         __global FTYPE* pdDrifts,
-        __global FTYPE* pdZ,
         //Simulation Parameters
         long iRndSeed,
         long lTrials,
@@ -112,7 +110,6 @@ __kernel void kernel_func(
         __global FTYPE* pdFactors,
         __global FTYPE* pdHJMPath,
         __global FTYPE* pdDrifts,
-        __global FTYPE* pdZ,
         __global FTYPE* pdSumSimSwaptionPrice,
         __global FTYPE* pdSumSquareSimSwaptionPrice) {
     int tid = get_global_id(0);
@@ -161,7 +158,6 @@ __kernel void kernel_func(
             &pdFactors[swaption_id * iFactors * (iN - 1)],
             &pdHJMPath[swaption_id * iN * (iN * BLOCK_SIZE)],
             &pdDrifts[swaption_id * iFactors * (iN - 1)],
-            &pdZ[swaption_id * iFactors * (iN * BLOCK_SIZE)],
             seed,
             NUM_TRIALS,
             beg,
@@ -355,7 +351,6 @@ int HJM_SimPath_Forward_Blocking(
         __global FTYPE* pdForward,		//t=0 Forward curve
         __global FTYPE* pdTotalDrift,	//Vector containing total drift corrections for different maturities
         __global FTYPE* pdFactors,	//Factor volatilities
-        __global FTYPE* pdZ, //vector to store random normals
         long* lRndSeed,			//Random number seed
         int BLOCK_SIZE,
         FTYPE ddelt)
@@ -367,6 +362,8 @@ int HJM_SimPath_Forward_Blocking(
     FTYPE sqrt_ddelt; //length of time steps
 
     sqrt_ddelt = sqrt(ddelt);
+
+    FTYPE pdZ[SIZE_Z];
 
     // t=0 forward curve stored iN first row of ppdHJMPath
     // At time step 0: insert expected drift
@@ -440,7 +437,6 @@ int HJM_Swaption_Blocking(
         __global FTYPE* pdFactors,
         __global FTYPE* pdHJMPath,
         __global FTYPE* pdDrifts,
-        __global FTYPE* pdZ,
         //Simulation Parameters
         long iRndSeed,
         long lTrials,
@@ -520,7 +516,7 @@ int HJM_Swaption_Blocking(
         int gap = min(trial_end - l, BLOCK_SIZE);
         //For each trial a new HJM Path is generated
         // GC: 51% of the time goes here
-        iSuccess = HJM_SimPath_Forward_Blocking(pdHJMPath, iN, iFactors, dYears, pdForward, pdTotalDrift,pdFactors, pdZ, &iRndSeed, gap, ddelt);
+        iSuccess = HJM_SimPath_Forward_Blocking(pdHJMPath, iN, iFactors, dYears, pdForward, pdTotalDrift,pdFactors, &iRndSeed, gap, ddelt);
         if (iSuccess!=1)
             return iSuccess;
 
