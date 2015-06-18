@@ -121,9 +121,11 @@ __kernel void kernel_func(
     int tid = get_global_id(0);
     int nWorkItems = get_global_size(0);
     FTYPE pdSwaptionPrice[2];
-    int swaption_id = (int)((tid * nSwaptions) / nWorkItems);
-    int local_size = nWorkItems / nSwaptions;
-    int local_id = tid % local_size;
+    int swaption_id = tid * nSwaptions / nWorkItems;
+    int bef_tid = (swaption_id * nWorkItems + nSwaptions - 1) / nSwaptions;
+    int next_tid = ((swaption_id + 1) * nWorkItems + nSwaptions - 1) / nSwaptions;
+    int local_id = tid - bef_tid;
+    int local_size = next_tid - bef_tid;
     int chunksize = NUM_TRIALS / local_size;
     int beg = local_id * chunksize;
     int end = beg + chunksize;
@@ -137,6 +139,8 @@ __kernel void kernel_func(
     FTYPE ddelt = (FTYPE)(dYears/iN);
     int iSwapVectorLength = (int)(iN - dMaturity / ddelt + 0.5);
     int iFactors = swaptions[swaption_id].iFactors;
+    long seed = (long)tid;
+    seed *= (end - beg) * BLOCK_SIZE * iN * iFactors;
 
     int iSuccess = HJM_Swaption_Blocking(
             pdSwaptionPrice,
@@ -162,7 +166,7 @@ __kernel void kernel_func(
             &pdDrifts[swaption_id * iFactors * (iN - 1)],
             &pdZ[swaption_id * iFactors * (iN * BLOCK_SIZE)],
             &pdRandZ[swaption_id * iFactors * (iN * BLOCK_SIZE)],
-            100,
+            seed,
             NUM_TRIALS,
             beg,
             end,
@@ -170,8 +174,8 @@ __kernel void kernel_func(
             tid,
             ddelt,
             iSwapVectorLength);
-    pdSumSimSwaptionPrice[swaption_id * local_size + local_id] = pdSwaptionPrice[0];
-    pdSumSquareSimSwaptionPrice[swaption_id * local_size + local_id] = pdSwaptionPrice[1];
+    pdSumSimSwaptionPrice[tid] = pdSwaptionPrice[0];
+    pdSumSquareSimSwaptionPrice[tid] = pdSwaptionPrice[1];
 };
 
 // CumNormalInv.cpp
@@ -383,13 +387,11 @@ int HJM_SimPath_Forward_Blocking(
 
     // sequentially generating random numbers
     for(int b=0; b<BLOCK_SIZE; b++){
-        for(int s=0; s<1; s++){
-            for (j=1;j<=iN-1;++j){
-                for (l=0;l<=iFactors-1;++l){
-                    //compute random number in exact same sequence
-                    // 10% of the total executition time
-                    pdRandZ[l * (iN * BLOCK_SIZE) + BLOCK_SIZE*j + b + s] = RanUnif(lRndSeed);
-                }
+        for (j=1;j<=iN-1;++j){
+            for (l=0;l<=iFactors-1;++l){
+                //compute random number in exact same sequence
+                // 10% of the total executition time
+                pdRandZ[l * (iN * BLOCK_SIZE) + BLOCK_SIZE*j + b] = RanUnif(lRndSeed);
             }
         }
     }
