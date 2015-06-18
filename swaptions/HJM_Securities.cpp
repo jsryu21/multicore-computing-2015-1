@@ -302,7 +302,6 @@ int main(int argc, char *argv[])
     cl_mem bufSwapRatePath;
     cl_mem bufSwapDiscountFactors;
     cl_mem bufSwapPayoffs;
-    cl_mem bufExpRes;
 #if defined(ENABLE_GPU)
     cl_mem bufSumSimSwaptionPrice;
     cl_mem bufSumSquareSimSwaptionPrice;
@@ -320,17 +319,17 @@ int main(int argc, char *argv[])
     size_t sizeYield = nSwaptions * iN * sizeof(FTYPE);
     size_t sizeForward = nSwaptions * iN * sizeof(FTYPE);
     size_t sizeTotalDrift = nSwaptions * (iN - 1) * sizeof(FTYPE);
-    size_t sizePayoffDiscountFactors = nSwaptions * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
-    size_t sizeDiscountingRatePath = nSwaptions * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizePayoffDiscountFactors = nSwaptions * (iN * BLOCK_SIZE) * sizeof(FTYPE);
+    size_t sizeDiscountingRatePath = nSwaptions * (iN * BLOCK_SIZE) * sizeof(FTYPE);
 
     FTYPE dMaturity = 1;
     FTYPE ddelt = (FTYPE)(dYears/iN);
     int iSwapVectorLength = (int)(iN - dMaturity / ddelt + 0.5);
 
-    size_t sizeSwapRatePath = nSwaptions * (iSwapVectorLength * BLOCK_SIZE_ARG) * sizeof(FTYPE);
-    size_t sizeSwapDiscountFactors = nSwaptions * (iSwapVectorLength * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeSwapRatePath = nSwaptions * (iSwapVectorLength * BLOCK_SIZE) * sizeof(FTYPE);
+    size_t sizeSwapDiscountFactors = nSwaptions * (iSwapVectorLength * BLOCK_SIZE) * sizeof(FTYPE);
     size_t sizeSwapPayoffs = nSwaptions * iSwapVectorLength * sizeof(FTYPE);
-    size_t sizeExpRes = nSwaptions * ((iN - 1) * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeExpRes = (iN - 1) * BLOCK_SIZE* sizeof(FTYPE);
 
 #if defined(ENABLE_GPU)
     size_t sizeSumSimSwaptionPrice = nThreads * sizeof(FTYPE);
@@ -339,9 +338,9 @@ int main(int argc, char *argv[])
 
     // matrix
     size_t sizeFactors = nSwaptions * iFactors * (iN - 1) * sizeof(FTYPE);
-    size_t sizeHJMPath = nSwaptions * iN * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeHJMPath = nSwaptions * iN * (iN * BLOCK_SIZE) * sizeof(FTYPE);
     size_t sizeDrifts = nSwaptions * iFactors * (iN - 1) * sizeof(FTYPE);
-    size_t sizeZ = iFactors * iN * BLOCK_SIZE_ARG * sizeof(FTYPE);
+    size_t sizeZ = iFactors * iN * BLOCK_SIZE* sizeof(FTYPE);
 
     checkErrors(clGetPlatformIDs(1, &platform, NULL), (char*)"clGetPlatformIDs", __LINE__);
 
@@ -386,8 +385,6 @@ int main(int argc, char *argv[])
     checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
     bufSwapPayoffs = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeSwapPayoffs, NULL, &errcode);
     checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
-    bufExpRes = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeExpRes, NULL, &errcode);
-    checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
 
 #if defined(ENABLE_GPU)
     bufSumSimSwaptionPrice = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeSumSimSwaptionPrice, NULL, &errcode);
@@ -431,6 +428,9 @@ int main(int argc, char *argv[])
     std::stringstream ss;
     ss << "-D SIZE_Z=";
     ss << sizeZ;
+    ss << " ";
+    ss << "-D SIZE_EXP_RES=";
+    ss << sizeExpRes;
 
     // create kernel
     program = clCreateProgramWithSource(context, 1, (const char**)&source_str, &source_size, &errcode);
@@ -464,14 +464,13 @@ int main(int argc, char *argv[])
     checkErrors(clSetKernelArg(kernel, 9, sizeof(cl_mem), (void*)&bufSwapRatePath), (char*)"clSetKernelArg", __LINE__);
     checkErrors(clSetKernelArg(kernel, 10, sizeof(cl_mem), (void*)&bufSwapDiscountFactors), (char*)"clSetKernelArg", __LINE__);
     checkErrors(clSetKernelArg(kernel, 11, sizeof(cl_mem), (void*)&bufSwapPayoffs), (char*)"clSetKernelArg", __LINE__);
-    checkErrors(clSetKernelArg(kernel, 12, sizeof(cl_mem), (void*)&bufExpRes), (char*)"clSetKernelArg", __LINE__);
-    checkErrors(clSetKernelArg(kernel, 13, sizeof(cl_mem), (void*)&bufFactors), (char*)"clSetKernelArg", __LINE__);
-    checkErrors(clSetKernelArg(kernel, 14, sizeof(cl_mem), (void*)&bufHJMPath), (char*)"clSetKernelArg", __LINE__);
-    checkErrors(clSetKernelArg(kernel, 15, sizeof(cl_mem), (void*)&bufDrifts), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 12, sizeof(cl_mem), (void*)&bufFactors), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 13, sizeof(cl_mem), (void*)&bufHJMPath), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 14, sizeof(cl_mem), (void*)&bufDrifts), (char*)"clSetKernelArg", __LINE__);
 
-#ifdef ENABLE_GPU
-    checkErrors(clSetKernelArg(kernel, 16, sizeof(cl_mem), (void*)&bufSumSimSwaptionPrice), (char*)"clSetKernelArg", __LINE__);
-    checkErrors(clSetKernelArg(kernel, 17, sizeof(cl_mem), (void*)&bufSumSquareSimSwaptionPrice), (char*)"clSetKernelArg", __LINE__);
+#if defined(ENABLE_GPU)
+    checkErrors(clSetKernelArg(kernel, 15, sizeof(cl_mem), (void*)&bufSumSimSwaptionPrice), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 16, sizeof(cl_mem), (void*)&bufSumSquareSimSwaptionPrice), (char*)"clSetKernelArg", __LINE__);
 #endif
 
 #endif

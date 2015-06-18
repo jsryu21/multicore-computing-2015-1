@@ -35,7 +35,6 @@ int Discount_Factors_Blocking(__global FTYPE* pdDiscountFactors
         , int iN
         , FTYPE dYears
         , __global FTYPE* pdRatePath
-        , __global FTYPE* pdExpRes
         , int BLOCK_SIZE);
 
 int HJM_Swaption_Blocking(
@@ -62,7 +61,6 @@ int HJM_Swaption_Blocking(
         __global FTYPE* pdSwapRatePath,
         __global FTYPE* pdSwapDiscountFactors,
         __global FTYPE* pdSwapPayoffs,
-        __global FTYPE* pdExpRes,
         __global FTYPE* pdFactors,
         __global FTYPE* pdHJMPath,
         __global FTYPE* pdDrifts,
@@ -106,7 +104,6 @@ __kernel void kernel_func(
         __global FTYPE* pdSwapRatePath,
         __global FTYPE* pdSwapDiscountFactors,
         __global FTYPE* pdSwapPayoffs,
-        __global FTYPE* pdExpRes,
         __global FTYPE* pdFactors,
         __global FTYPE* pdHJMPath,
         __global FTYPE* pdDrifts,
@@ -154,7 +151,6 @@ __kernel void kernel_func(
             &pdSwapRatePath[swaption_id * (iSwapVectorLength * BLOCK_SIZE)],
             &pdSwapDiscountFactors[swaption_id * (iSwapVectorLength * BLOCK_SIZE)],
             &pdSwapPayoffs[swaption_id * iSwapVectorLength],
-            &pdExpRes[swaption_id * ((iN - 1) * BLOCK_SIZE)],
             &pdFactors[swaption_id * iFactors * (iN - 1)],
             &pdHJMPath[swaption_id * iN * (iN * BLOCK_SIZE)],
             &pdDrifts[swaption_id * iFactors * (iN - 1)],
@@ -314,7 +310,6 @@ int Discount_Factors_Blocking(
         int iN,
         FTYPE dYears,
         __global FTYPE* pdRatePath,
-        __global FTYPE* pdExpRes,
         int BLOCK_SIZE)
 {
     int i,j,b;				//looping variables
@@ -323,9 +318,10 @@ int Discount_Factors_Blocking(
     FTYPE ddelt;			//HJM time-step length
     ddelt = (FTYPE) (dYears/iN);
 
+    FTYPE pdExpRes[SIZE_EXP_RES];
+
     //precompute the exponientials
-    for (j=0; j<=(iN-1)*BLOCK_SIZE-1; ++j){ pdExpRes[j] = -pdRatePath[j]*ddelt; }
-    for (j=0; j<=(iN-1)*BLOCK_SIZE-1; ++j){ pdExpRes[j] = exp(pdExpRes[j]);  }
+    for (j=0; j<=(iN-1)*BLOCK_SIZE-1; ++j){ pdExpRes[j] = exp(-pdRatePath[j]*ddelt); }
 
     //initializing the discount factor vector
     for (i=0; i<(iN)*BLOCK_SIZE; ++i)
@@ -433,7 +429,6 @@ int HJM_Swaption_Blocking(
         __global FTYPE* pdSwapRatePath,
         __global FTYPE* pdSwapDiscountFactors,
         __global FTYPE* pdSwapPayoffs,
-        __global FTYPE* pdExpRes,
         __global FTYPE* pdFactors,
         __global FTYPE* pdHJMPath,
         __global FTYPE* pdDrifts,
@@ -528,7 +523,7 @@ int HJM_Swaption_Blocking(
             }
         }
         // 15% of the time goes here
-        iSuccess = Discount_Factors_Blocking(pdPayoffDiscountFactors, iN, dYears, pdDiscountingRatePath, pdExpRes, gap);
+        iSuccess = Discount_Factors_Blocking(pdPayoffDiscountFactors, iN, dYears, pdDiscountingRatePath, gap);
 
         if (iSuccess!=1)
             return iSuccess;
@@ -539,7 +534,7 @@ int HJM_Swaption_Blocking(
                 pdSwapRatePath[i*gap + b] = pdHJMPath[iSwapStartTimeIndex * (iN * gap) + i*gap + b];
             }
         }
-        iSuccess = Discount_Factors_Blocking(pdSwapDiscountFactors, iSwapVectorLength, dSwapVectorYears, pdSwapRatePath, pdExpRes, gap);
+        iSuccess = Discount_Factors_Blocking(pdSwapDiscountFactors, iSwapVectorLength, dSwapVectorYears, pdSwapRatePath, gap);
         if (iSuccess!=1)
             return iSuccess;
 
