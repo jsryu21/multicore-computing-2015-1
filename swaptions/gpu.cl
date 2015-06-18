@@ -121,9 +121,11 @@ __kernel void kernel_func(
     int tid = get_global_id(0);
     int nWorkItems = get_global_size(0);
     FTYPE pdSwaptionPrice[2];
-    int swaption_id = (int)((tid * nSwaptions) / nWorkItems);
-    int local_size = nWorkItems / nSwaptions;
-    int local_id = tid % local_size;
+    int swaption_id = tid * nSwaptions / nWorkItems;
+    int bef_tid = (swaption_id * nWorkItems + nSwaptions - 1) / nSwaptions;
+    int next_tid = ((swaption_id + 1) * nWorkItems + nSwaptions - 1) / nSwaptions;
+    int local_id = tid - bef_tid;
+    int local_size = next_tid - bef_tid;
     int chunksize = NUM_TRIALS / local_size;
     int beg = local_id * chunksize;
     int end = beg + chunksize;
@@ -149,29 +151,29 @@ __kernel void kernel_func(
             iFactors,
             dYears,
             &pdYield[swaption_id * iN],
-            &pdForward[swaption_id * iN],
-            &pdTotalDrift[swaption_id * (iN - 1)],
-            &pdPayoffDiscountFactors[swaption_id * (iN * BLOCK_SIZE)],
-            &pdDiscountingRatePath[swaption_id * (iN * BLOCK_SIZE)],
-            &pdSwapRatePath[swaption_id * (iSwapVectorLength * BLOCK_SIZE)],
-            &pdSwapDiscountFactors[swaption_id * (iSwapVectorLength * BLOCK_SIZE)],
-            &pdSwapPayoffs[swaption_id * iSwapVectorLength],
-            &pdExpRes[swaption_id * ((iN - 1) * BLOCK_SIZE)],
+            &pdForward[tid * iN],
+            &pdTotalDrift[tid * (iN - 1)],
+            &pdPayoffDiscountFactors[tid * (iN * BLOCK_SIZE)],
+            &pdDiscountingRatePath[tid * (iN * BLOCK_SIZE)],
+            &pdSwapRatePath[tid * (iSwapVectorLength * BLOCK_SIZE)],
+            &pdSwapDiscountFactors[tid * (iSwapVectorLength * BLOCK_SIZE)],
+            &pdSwapPayoffs[tid * iSwapVectorLength],
+            &pdExpRes[tid * ((iN - 1) * BLOCK_SIZE)],
             &pdFactors[swaption_id * iFactors * (iN - 1)],
-            &pdHJMPath[swaption_id * iN * (iN * BLOCK_SIZE)],
-            &pdDrifts[swaption_id * iFactors * (iN - 1)],
-            &pdZ[swaption_id * iFactors * (iN * BLOCK_SIZE)],
-            &pdRandZ[swaption_id * iFactors * (iN * BLOCK_SIZE)],
-            100,
+            &pdHJMPath[tid * iN * (iN * BLOCK_SIZE)],
+            &pdDrifts[tid * iFactors * (iN - 1)],
+            &pdZ[tid * iFactors * (iN * BLOCK_SIZE)],
+            &pdRandZ[tid * iFactors * (iN * BLOCK_SIZE)],
+            tid * (end - beg) * BLOCK_SIZE * iN * iFactors,
             NUM_TRIALS,
             beg,
             end,
             BLOCK_SIZE,
-            tid,
+            swaption_id,
             ddelt,
             iSwapVectorLength);
-    pdSumSimSwaptionPrice[swaption_id * local_size + local_id] = pdSwaptionPrice[0];
-    pdSumSquareSimSwaptionPrice[swaption_id * local_size + local_id] = pdSwaptionPrice[1];
+    pdSumSimSwaptionPrice[tid] = pdSwaptionPrice[0];
+    pdSumSquareSimSwaptionPrice[tid] = pdSwaptionPrice[1];
 };
 
 // CumNormalInv.cpp
@@ -383,13 +385,11 @@ int HJM_SimPath_Forward_Blocking(
 
     // sequentially generating random numbers
     for(int b=0; b<BLOCK_SIZE; b++){
-        for(int s=0; s<1; s++){
-            for (j=1;j<=iN-1;++j){
-                for (l=0;l<=iFactors-1;++l){
-                    //compute random number in exact same sequence
-                    // 10% of the total executition time
-                    pdRandZ[l * (iN * BLOCK_SIZE) + BLOCK_SIZE*j + b + s] = RanUnif(lRndSeed);
-                }
+        for (j=1;j<=iN-1;++j){
+            for (l=0;l<=iFactors-1;++l){
+                //compute random number in exact same sequence
+                // 10% of the total executition time
+                pdRandZ[l * (iN * BLOCK_SIZE) + BLOCK_SIZE*j + b] = RanUnif(lRndSeed);
             }
         }
     }

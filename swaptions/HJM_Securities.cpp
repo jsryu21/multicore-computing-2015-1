@@ -318,35 +318,48 @@ int main(int argc, char *argv[])
 
     cl_kernel kernel;
     size_t sizeSwaptions = nSwaptions * sizeof(parm);
-
-    // vector
     size_t sizeYield = nSwaptions * iN * sizeof(FTYPE);
-    size_t sizeForward = nSwaptions * iN * sizeof(FTYPE);
-    size_t sizeTotalDrift = nSwaptions * (iN - 1) * sizeof(FTYPE);
-    size_t sizePayoffDiscountFactors = nSwaptions * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
-    size_t sizeDiscountingRatePath = nSwaptions * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeFactors = nSwaptions * iFactors * (iN - 1) * sizeof(FTYPE);
 
     FTYPE dMaturity = 1;
     FTYPE ddelt = (FTYPE)(dYears/iN);
     int iSwapVectorLength = (int)(iN - dMaturity / ddelt + 0.5);
 
+#if defined(ENABLE_CPU)
+    // vector
+    size_t sizeForward = nSwaptions * iN * sizeof(FTYPE);
+    size_t sizeTotalDrift = nSwaptions * (iN - 1) * sizeof(FTYPE);
+    size_t sizePayoffDiscountFactors = nSwaptions * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeDiscountingRatePath = nSwaptions * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
     size_t sizeSwapRatePath = nSwaptions * (iSwapVectorLength * BLOCK_SIZE_ARG) * sizeof(FTYPE);
     size_t sizeSwapDiscountFactors = nSwaptions * (iSwapVectorLength * BLOCK_SIZE_ARG) * sizeof(FTYPE);
     size_t sizeSwapPayoffs = nSwaptions * iSwapVectorLength * sizeof(FTYPE);
     size_t sizeExpRes = nSwaptions * ((iN - 1) * BLOCK_SIZE_ARG) * sizeof(FTYPE);
 
-#if defined(ENABLE_GPU)
-    int local_size = nThreads / nSwaptions;
-    size_t sizeSumSimSwaptionPrice = nThreads * sizeof(FTYPE);
-    size_t sizeSumSquareSimSwaptionPrice = nThreads * sizeof(FTYPE);
-#endif
-
     // matrix
-    size_t sizeFactors = nSwaptions * iFactors * (iN - 1) * sizeof(FTYPE);
     size_t sizeHJMPath = nSwaptions * iN * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
     size_t sizeDrifts = nSwaptions * iFactors * (iN - 1) * sizeof(FTYPE);
     size_t sizeZ = nSwaptions * iFactors * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
     size_t sizeRandZ = nSwaptions * iFactors * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+#elif defined(ENABLE_GPU)
+    // vector
+    size_t sizeForward = nThreads * iN * sizeof(FTYPE);
+    size_t sizeTotalDrift = nThreads * (iN - 1) * sizeof(FTYPE);
+    size_t sizePayoffDiscountFactors = nThreads * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeDiscountingRatePath = nThreads * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeSwapRatePath = nThreads * (iSwapVectorLength * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeSwapDiscountFactors = nThreads * (iSwapVectorLength * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeSwapPayoffs = nThreads * iSwapVectorLength * sizeof(FTYPE);
+    size_t sizeExpRes = nThreads * ((iN - 1) * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeSumSimSwaptionPrice = nThreads * sizeof(FTYPE);
+    size_t sizeSumSquareSimSwaptionPrice = nThreads * sizeof(FTYPE);
+
+    // matrix
+    size_t sizeHJMPath = nThreads * iN * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeDrifts = nThreads * iFactors * (iN - 1) * sizeof(FTYPE);
+    size_t sizeZ = nThreads * iFactors * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeRandZ = nThreads * iFactors * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+#endif
 
     checkErrors(clGetPlatformIDs(1, &platform, NULL), (char*)"clGetPlatformIDs", __LINE__);
 
@@ -614,17 +627,28 @@ int main(int argc, char *argv[])
     checkErrors(clEnqueueReadBuffer(command_queue, bufSumSquareSimSwaptionPrice, CL_FALSE, 0, sizeSumSquareSimSwaptionPrice, pdSumSquareSimSwaptionPrice, 0, NULL, NULL), (char*)"clEnqueueReadBuffer", __LINE__);
     checkErrors(clFinish(command_queue), (char*)"clFinish", __LINE__);
 
+    int chunkCnt = nThreads / nSwaptions;
     for (i = 0; i < nSwaptions; ++i) {
         FTYPE sum = 0;
         FTYPE sumSquare = 0;
-        for (j = 0; j < local_size; ++j) {
-            sum += pdSumSimSwaptionPrice[i * local_size + j];
-            sumSquare += pdSumSquareSimSwaptionPrice[i * local_size + j];
+        for (j = 0; j < chunkCnt; ++j) {
+            sum += pdSumSimSwaptionPrice[i * chunkCnt + j];
+            sumSquare += pdSumSquareSimSwaptionPrice[i * chunkCnt + j];
         }
+        /*
+        if (i == 127) {
+            for (j = 0; j < chunkCnt; ++j) {
+                printf("chunk %d, partial sum : %f. partial sum square : %f\n", j, pdSumSimSwaptionPrice[i * chunkCnt + j], pdSumSquareSimSwaptionPrice[i * chunkCnt + j]);
+            }
+        }
+        */
         swaptions[i].dSimSwaptionMeanPrice = sum / NUM_TRIALS;
         swaptions[i].dSimSwaptionStdError = sqrt((sumSquare-sum*sum/NUM_TRIALS)/
                 (NUM_TRIALS-1.0))/sqrt((FTYPE)NUM_TRIALS);
     }
+
+    free(pdSumSimSwaptionPrice);
+    free(pdSumSquareSimSwaptionPrice);
 #endif
 
     for (i = 0; i < nSwaptions; i++) {
