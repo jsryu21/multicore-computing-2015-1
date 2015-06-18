@@ -378,15 +378,15 @@ int main(int argc, char *argv[])
 #if defined(ENABLE_CPU)
     bufferSwaptions = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeSwaptions, NULL, &errcode);
 #elif defined(ENABLE_GPU)
-    bufferSwaptions = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeSwaptions, NULL, &errcode);
+    bufferSwaptions = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeSwaptions, NULL, &errcode);
 #endif
 
     checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
 
 #if defined(ENABLE_CPU)
-    bufYield = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, sizeYield, NULL, &errcode);
+    bufYield = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeYield, NULL, &errcode);
 #elif defined(ENABLE_GPU)
-    bufYield = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeYield, NULL, &errcode);
+    bufYield = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeYield, NULL, &errcode);
 #endif
 
     checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
@@ -408,16 +408,16 @@ int main(int argc, char *argv[])
     checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
 
 #if defined(ENABLE_GPU)
-    bufSumSimSwaptionPrice = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeSumSimSwaptionPrice, NULL, &errcode);
+    bufSumSimSwaptionPrice = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeSumSimSwaptionPrice, NULL, &errcode);
     checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
-    bufSumSquareSimSwaptionPrice = clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeSumSquareSimSwaptionPrice, NULL, &errcode);
+    bufSumSquareSimSwaptionPrice = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeSumSquareSimSwaptionPrice, NULL, &errcode);
     checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
 #endif
 
 #if defined(ENABLE_CPU)
-    bufFactors = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_ALLOC_HOST_PTR, sizeFactors, NULL, &errcode);
+    bufFactors = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_ALLOC_HOST_PTR, sizeFactors, NULL, &errcode);
 #elif defined(ENABLE_GPU)
-    bufFactors = clCreateBuffer(context, CL_MEM_READ_ONLY, sizeFactors, NULL, &errcode);
+    bufFactors = clCreateBuffer(context, CL_MEM_READ_WRITE, sizeFactors, NULL, &errcode);
 #endif
 
     checkErrors(errcode, (char*)"clCreateBuffer", __LINE__);
@@ -587,7 +587,7 @@ int main(int argc, char *argv[])
 #endif
     }
 
-#ifdef ENABLE_GPU
+#if defined(ENABLE_GPU)
     checkErrors(clEnqueueWriteBuffer(command_queue, bufferSwaptions, CL_FALSE, 0, sizeSwaptions, swaptions, 0, NULL, NULL), (char*)"clEnqueueWriteBuffer", __LINE__);
     checkErrors(clEnqueueWriteBuffer(command_queue, bufYield, CL_FALSE, 0, sizeYield, pdYield, 0, NULL, NULL), (char*)"clEnqueueWriteBuffer", __LINE__);
     checkErrors(clEnqueueWriteBuffer(command_queue, bufFactors, CL_FALSE, 0, sizeFactors, pdFactors, 0, NULL, NULL), (char*)"clEnqueueWriteBuffer", __LINE__);
@@ -595,11 +595,10 @@ int main(int argc, char *argv[])
 #endif
 
     // **********Calling the Swaption Pricing Routine*****************
-#ifdef ENABLE_SEQ
+#if defined(ENABLE_SEQ)
     int threadID=0;
     worker(&threadID);
-#endif
-#ifdef ENABLE_THREAD
+#elif defined(ENABLE_THREAD)
     int threadIDs[nThreads];
     for (i = 0; i < nThreads; i++) {
         threadIDs[i] = i;
@@ -610,8 +609,7 @@ int main(int argc, char *argv[])
     }
 
     free(threads);
-#endif
-#if defined(ENABLE_CPU) || defined(ENABLE_GPU)
+#elif defined(ENABLE_CPU) || defined(ENABLE_GPU)
     // Iterate through number of interations
     size_t global = nThreads;
     size_t local = local_size;
@@ -627,17 +625,15 @@ int main(int argc, char *argv[])
     checkErrors(clEnqueueReadBuffer(command_queue, bufSumSquareSimSwaptionPrice, CL_FALSE, 0, sizeSumSquareSimSwaptionPrice, pdSumSquareSimSwaptionPrice, 0, NULL, NULL), (char*)"clEnqueueReadBuffer", __LINE__);
     checkErrors(clFinish(command_queue), (char*)"clFinish", __LINE__);
 
-    int chunkCnt = nThreads / nSwaptions;
     for (i = 0; i < nSwaptions; ++i) {
         int start_tid = (i * nThreads + nSwaptions - 1) / nSwaptions;
         int end_tid = ((i + 1) * nThreads + nSwaptions - 1) / nSwaptions;
-        double sum = 0.0;
-        double sumSquare = 0.0;
+        FTYPE sum = 0.0;
+        FTYPE sumSquare = 0.0;
         for (j = start_tid; j < end_tid; ++j) {
             sum += pdSumSimSwaptionPrice[j];
             sumSquare += pdSumSquareSimSwaptionPrice[j];
         }
-        printf("%d, sum : %f, sumSquare : %f\n", i, sum, sumSquare);
         swaptions[i].dSimSwaptionMeanPrice = sum / NUM_TRIALS;
         swaptions[i].dSimSwaptionStdError = sqrt((sumSquare-sum*sum/NUM_TRIALS)/
                 (NUM_TRIALS-1.0))/sqrt((FTYPE)NUM_TRIALS);
