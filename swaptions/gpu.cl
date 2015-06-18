@@ -139,6 +139,8 @@ __kernel void kernel_func(
     FTYPE ddelt = (FTYPE)(dYears/iN);
     int iSwapVectorLength = (int)(iN - dMaturity / ddelt + 0.5);
     int iFactors = swaptions[swaption_id].iFactors;
+    long seed = (long)tid;
+    seed *= (end - beg) * BLOCK_SIZE * iN * iFactors;
 
     int iSuccess = HJM_Swaption_Blocking(
             pdSwaptionPrice,
@@ -164,7 +166,7 @@ __kernel void kernel_func(
             &pdDrifts[tid * iFactors * (iN - 1)],
             &pdZ[tid * iFactors * (iN * BLOCK_SIZE)],
             &pdRandZ[tid * iFactors * (iN * BLOCK_SIZE)],
-            tid * (end - beg) * BLOCK_SIZE * iN * iFactors,
+            seed,
             NUM_TRIALS,
             beg,
             end,

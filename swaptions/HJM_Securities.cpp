@@ -629,19 +629,15 @@ int main(int argc, char *argv[])
 
     int chunkCnt = nThreads / nSwaptions;
     for (i = 0; i < nSwaptions; ++i) {
-        FTYPE sum = 0;
-        FTYPE sumSquare = 0;
-        for (j = 0; j < chunkCnt; ++j) {
-            sum += pdSumSimSwaptionPrice[i * chunkCnt + j];
-            sumSquare += pdSumSquareSimSwaptionPrice[i * chunkCnt + j];
+        int start_tid = (i * nThreads + nSwaptions - 1) / nSwaptions;
+        int end_tid = ((i + 1) * nThreads + nSwaptions - 1) / nSwaptions;
+        double sum = 0.0;
+        double sumSquare = 0.0;
+        for (j = start_tid; j < end_tid; ++j) {
+            sum += pdSumSimSwaptionPrice[j];
+            sumSquare += pdSumSquareSimSwaptionPrice[j];
         }
-        /*
-        if (i == 127) {
-            for (j = 0; j < chunkCnt; ++j) {
-                printf("chunk %d, partial sum : %f. partial sum square : %f\n", j, pdSumSimSwaptionPrice[i * chunkCnt + j], pdSumSquareSimSwaptionPrice[i * chunkCnt + j]);
-            }
-        }
-        */
+        printf("%d, sum : %f, sumSquare : %f\n", i, sum, sumSquare);
         swaptions[i].dSimSwaptionMeanPrice = sum / NUM_TRIALS;
         swaptions[i].dSimSwaptionStdError = sqrt((sumSquare-sum*sum/NUM_TRIALS)/
                 (NUM_TRIALS-1.0))/sqrt((FTYPE)NUM_TRIALS);
