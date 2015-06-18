@@ -15,14 +15,14 @@
 #include "HJM_Securities.h"
 #include "HJM_type.h"
 
-#ifdef ENABLE_THREAD
+#if defined(ENABLE_THREAD)
 #include <pthread.h>
 #define MAX_THREAD 1024
 #endif
 #if defined(ENABLE_CPU) || defined(ENABLE_GPU)
 #include <CL/cl.h>
 #endif
-#ifdef ENABLE_MPI
+#if defined(ENABLE_MPI)
 #include "mpi.h"
 #endif
 
