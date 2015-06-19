@@ -1,2 +1,2 @@
 #!/bin/bash
-thorq --add --mode snucl --nodes 5 --device gpu ./swaptions_snucl -nt 131072 -ls 16 -ns 128 -sm 1000000
+thorq --add --mode snucl --nodes 5 --device gpu ./swaptions_snucl -nt 32768 -ls 128 -ns 128 -sm 1000000

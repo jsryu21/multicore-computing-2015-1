@@ -1,12 +1,2 @@
 #!/bin/bash
-thorq --add --mode single --device cpu ./swaptions_cpu -nt 64 -ls 1 -ns 128 -sm 1000000
-#for i in 1 2 4 8 16 32 64
-#do
-#    for j in 1 2 4 8 16 32 64
-#    do
-#        if [ "$i" -gt "$j" ]
-#        then
-#            thorq --add --mode single --device cpu ./swaptions_cpu -nt $i -ls $j -ns 128 -sm 20000
-#        fi
-#    done
-#done
+thorq --add --mode single --device cpu ./swaptions_cpu -nt 32 -ls 1 -ns 128 -sm 1000000

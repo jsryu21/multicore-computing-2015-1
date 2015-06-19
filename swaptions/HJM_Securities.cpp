@@ -48,9 +48,6 @@ FTYPE* pdFactors;
 
 static const int MAX_SOURCE_SIZE = 0x100000;
 
-FTYPE *dSumSimSwaptionPrice_global_ptr;
-FTYPE *dSumSquareSimSwaptionPrice_global_ptr;
-
 #if defined(ENABLE_SEQ) || defined(ENABLE_THREAD)
 void * worker(void *arg){
     int tid = *((int *)arg);
@@ -336,8 +333,6 @@ int main(int argc, char *argv[])
     cl_mem bufSwapDiscountFactors;
     cl_mem bufSwapPayoffs;
     cl_mem bufExpRes;
-    cl_mem bufSumSimSwaptionPrice;
-    cl_mem bufSumSquareSimSwaptionPrice;
 
     // matrix
     cl_mem bufFactors;
