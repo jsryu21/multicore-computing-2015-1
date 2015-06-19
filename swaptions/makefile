@@ -41,8 +41,11 @@ ifeq "$(version)" "mpi"
 	EXEC := $(EXEC_MPI)
 endif
 ifeq "$(version)" "snucl"
-	DEF := $(DEF) -DENABLE_SNUCL
-	#CXXFLAGS := $(CXXFLAGS) -pthread
+	CXX = mpic++
+	DEF := $(DEF) -DENABLE_GPU
+	INCLUDE := $(INCLUDE) -I$(SNUCLROOT)/inc
+	LIBS := $(LIBS) -L$(SNUCLROOT)/lib
+	LDLIBS := $(LDLIBS) -lsnucl_cluster
 	EXEC := $(EXEC_SNUCL)
 endif
 endif
@@ -50,10 +53,10 @@ endif
 all: remove_obj_exec $(EXEC)
 
 $(EXEC): $(OBJS)
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(DEF) $(OBJS) $(INCLUDE) $(LIBS) -o $(EXEC)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(DEF) $(OBJS) $(INCLUDE) $(LIBS) $(LDLIBS) -o $(EXEC)
 
 .cpp.o:
-	$(CXX) $(CXXFLAGS) $(DEF) -c $*.cpp -o $*.o
+	$(CXX) $(CXXFLAGS) $(DEF) $(INCLUDE) $(LIBS) $(LDLIBS) -c $*.cpp -o $*.o
 
 .c.o:
 	$(CXX) $(CXXFLAGS) $(DEF) -c $*.c -o $*.o
