@@ -233,12 +233,27 @@ static double get_time() {
 
 int main(int argc, char *argv[])
 {
+#if defined(ENABLE_MPI)
+    int numnodes;
+    int myid;
+    MPI_Status status;
+    int mpi_err = MPI_Init(&argc, &argv);
+    mpi_err = MPI_Comm_size(MPI_COMM_WORLD, &numnodes);
+    mpi_err = MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+#endif
+
     double start_time = get_time();
     int iSuccess = 0;
     int i,j;
 
     FTYPE **factors=NULL;
-    printf("PARSEC Benchmark Suite\n");
+#if defined(ENABLE_MPI)
+    if (myid == 0) {
+#endif
+        printf("PARSEC Benchmark Suite\n");
+#if defined(ENABLE_MPI)
+    }
+#endif
     fflush(NULL);
 
     if(argc == 1)
@@ -257,15 +272,15 @@ int main(int argc, char *argv[])
         }
     }
 
-    printf("Number of Simulations: %d,  Number of threads: %d Number of swaptions: %d\n", NUM_TRIALS, nThreads, nSwaptions);
+#if defined(ENABLE_MPI)
+    if (myid == 0) {
+#endif
+        printf("Number of Simulations: %d,  Number of threads: %d Number of swaptions: %d\n", NUM_TRIALS, nThreads, nSwaptions);
+#if defined(ENABLE_MPI)
+    }
+#endif
 
 #if defined(ENABLE_MPI)
-    int numnodes;
-    int myid;
-    MPI_Status status;
-    int mpi_err = MPI_Init(&argc, &argv);
-    mpi_err = MPI_Comm_size(MPI_COMM_WORLD, &numnodes);
-    mpi_err = MPI_Comm_rank(MPI_COMM_WORLD, &myid);
     int nSwaptionsPerNode = nSwaptions / numnodes;
     swaption_begin_id = myid * nSwaptionsPerNode;
     int swaption_end_id = swaption_begin_id + nSwaptionsPerNode;
@@ -764,7 +779,13 @@ int main(int argc, char *argv[])
     free(swaptions);
 
     double end_time = get_time();
-    printf("Time spent : %lf sec\n", end_time - start_time);
+#if defined(ENABLE_MPI)
+    if (myid == 0) {
+#endif
+        printf("Time spent : %lf sec\n", end_time - start_time);
+#if defined(ENABLE_MPI)
+    }
+#endif
 
     return iSuccess;
 }
