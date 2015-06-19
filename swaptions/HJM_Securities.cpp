@@ -31,6 +31,8 @@ int BLOCK_SIZE_ARG = BLOCK_SIZE;
 int nThreads = 1;
 int local_size = 1;
 int nSwaptions = 1;
+int swaption_begin_id;
+int nSwaptionsDuty;
 int iN = 11; 
 FTYPE dYears = 5.5; 
 int iFactors = 3; 
@@ -54,11 +56,11 @@ void * worker(void *arg){
     int tid = *((int *)arg);
     FTYPE pdSwaptionPrice[2];
 
-    int chunksize = nSwaptions/nThreads;
+    int chunksize = nSwaptionsDuty/nThreads;
     int beg = tid*chunksize;
     int end = (tid+1)*chunksize;
     if(tid == nThreads -1)
-        end = nSwaptions;
+        end = nSwaptionsDuty;
 
     for(int i=beg; i < end; i++) {
         int iSuccess = HJM_Swaption_Blocking(pdSwaptionPrice,  swaptions[i].dStrike, 
@@ -249,13 +251,32 @@ int main(int argc, char *argv[])
         if (!strcmp("-sm", argv[j])) {NUM_TRIALS = atoi(argv[++j]);}
         else if (!strcmp("-nt", argv[j])) {nThreads = atoi(argv[++j]);}
         else if (!strcmp("-ls", argv[j])) {local_size = atoi(argv[++j]);}
-        else if (!strcmp("-ns", argv[j])) {nSwaptions = atoi(argv[++j]);} 
+        else if (!strcmp("-ns", argv[j])) {nSwaptions = atoi(argv[++j]);}
         else {
             fprintf(stderr," usage: \n\t-ns [number of swaptions (should be > number of threads]\n\t-sm [number of simulations]\n\t-nt [number of threads]\n"); 
         }
     }
 
     printf("Number of Simulations: %d,  Number of threads: %d Number of swaptions: %d\n", NUM_TRIALS, nThreads, nSwaptions);
+
+#if defined(ENABLE_MPI)
+    int numnodes;
+    int myid;
+    MPI_Status status;
+    int mpi_err = MPI_Init(&argc, &argv);
+    mpi_err = MPI_Comm_size(MPI_COMM_WORLD, &numnodes);
+    mpi_err = MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+    int nSwaptionsPerNode = nSwaptions / numnodes;
+    swaption_begin_id = myid * nSwaptionsPerNode;
+    int swaption_end_id = swaption_begin_id + nSwaptionsPerNode;
+    if (myid == numnodes - 1) {
+        swaption_end_id = nSwaptions;
+    }
+    nSwaptionsDuty = swaption_end_id - swaption_begin_id;
+#else
+    swaption_begin_id = 0;
+    nSwaptionsDuty= nSwaptions;
+#endif
 
 #if defined(ENABLE_SEQ)
     if (nThreads != 1)
@@ -329,54 +350,54 @@ int main(int argc, char *argv[])
 #endif
 
     cl_kernel kernel;
-    size_t sizeSwaptions = nSwaptions * sizeof(parm);
+    size_t sizeSwaptions = nSwaptionsDuty * sizeof(parm);
 
 #if defined(ENABLE_CPU)
     // vector
-    size_t sizeYield = nSwaptions * iN * sizeof(FTYPE);
-    size_t sizeForward = nSwaptions * iN * sizeof(FTYPE);
-    size_t sizeTotalDrift = nSwaptions * (iN - 1) * sizeof(FTYPE);
-    size_t sizePayoffDiscountFactors = nSwaptions * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
-    size_t sizeDiscountingRatePath = nSwaptions * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeYield = nSwaptionsDuty * iN * sizeof(FTYPE);
+    size_t sizeForward = nSwaptionsDuty * iN * sizeof(FTYPE);
+    size_t sizeTotalDrift = nSwaptionsDuty * (iN - 1) * sizeof(FTYPE);
+    size_t sizePayoffDiscountFactors = nSwaptionsDuty * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeDiscountingRatePath = nSwaptionsDuty * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
 
     FTYPE dMaturity = 1;
     FTYPE ddelt = (FTYPE)(dYears/iN);
     int iSwapVectorLength = (int)(iN - dMaturity / ddelt + 0.5);
 
-    size_t sizeSwapRatePath = nSwaptions * (iSwapVectorLength * BLOCK_SIZE_ARG) * sizeof(FTYPE);
-    size_t sizeSwapDiscountFactors = nSwaptions * (iSwapVectorLength * BLOCK_SIZE_ARG) * sizeof(FTYPE);
-    size_t sizeSwapPayoffs = nSwaptions * iSwapVectorLength * sizeof(FTYPE);
-    size_t sizeExpRes = nSwaptions * ((iN - 1) * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeSwapRatePath = nSwaptionsDuty * (iSwapVectorLength * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeSwapDiscountFactors = nSwaptionsDuty * (iSwapVectorLength * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeSwapPayoffs = nSwaptionsDuty * iSwapVectorLength * sizeof(FTYPE);
+    size_t sizeExpRes = nSwaptionsDuty * ((iN - 1) * BLOCK_SIZE_ARG) * sizeof(FTYPE);
 
     // matrix
-    size_t sizeFactors = nSwaptions * iFactors * (iN - 1) * sizeof(FTYPE);
-    size_t sizeHJMPath = nSwaptions * iN * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
-    size_t sizeDrifts = nSwaptions * iFactors * (iN - 1) * sizeof(FTYPE);
-    size_t sizeZ = nSwaptions * iFactors * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
-    size_t sizeRandZ = nSwaptions * iFactors * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeFactors = nSwaptionsDuty * iFactors * (iN - 1) * sizeof(FTYPE);
+    size_t sizeHJMPath = nSwaptionsDuty * iN * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeDrifts = nSwaptionsDuty * iFactors * (iN - 1) * sizeof(FTYPE);
+    size_t sizeZ = nSwaptionsDuty * iFactors * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeRandZ = nSwaptionsDuty * iFactors * (iN * BLOCK_SIZE_ARG) * sizeof(FTYPE);
 #elif defined(ENABLE_GPU)
     // vector
-    size_t sizeYield = nSwaptions * iN * sizeof(FTYPE);
-    size_t sizeForward = nSwaptions * iN * sizeof(FTYPE);
-    size_t sizeTotalDrift = nSwaptions * (iN - 1) * sizeof(FTYPE);
-    size_t sizePayoffDiscountFactors = nSwaptions * (iN * BLOCK_SIZE) * sizeof(FTYPE);
-    size_t sizeDiscountingRatePath = nSwaptions * (iN * BLOCK_SIZE) * sizeof(FTYPE);
+    size_t sizeYield = nSwaptionsDuty * iN * sizeof(FTYPE);
+    size_t sizeForward = nSwaptionsDuty * iN * sizeof(FTYPE);
+    size_t sizeTotalDrift = nSwaptionsDuty * (iN - 1) * sizeof(FTYPE);
+    size_t sizePayoffDiscountFactors = nSwaptionsDuty * (iN * BLOCK_SIZE) * sizeof(FTYPE);
+    size_t sizeDiscountingRatePath = nSwaptionsDuty * (iN * BLOCK_SIZE) * sizeof(FTYPE);
 
     FTYPE dMaturity = 1;
     FTYPE ddelt = (FTYPE)(dYears/iN);
     int iSwapVectorLength = (int)(iN - dMaturity / ddelt + 0.5);
 
-    size_t sizeSwapRatePath = nSwaptions * (iSwapVectorLength * BLOCK_SIZE) * sizeof(FTYPE);
-    size_t sizeSwapDiscountFactors = nSwaptions * (iSwapVectorLength * BLOCK_SIZE) * sizeof(FTYPE);
-    size_t sizeSwapPayoffs = nSwaptions * iSwapVectorLength * sizeof(FTYPE);
+    size_t sizeSwapRatePath = nSwaptionsDuty * (iSwapVectorLength * BLOCK_SIZE) * sizeof(FTYPE);
+    size_t sizeSwapDiscountFactors = nSwaptionsDuty * (iSwapVectorLength * BLOCK_SIZE_ARG) * sizeof(FTYPE);
+    size_t sizeSwapPayoffs = nSwaptionsDuty * iSwapVectorLength * sizeof(FTYPE);
     size_t sizeExpRes = (iN - 1) * BLOCK_SIZE* sizeof(FTYPE);
     size_t sizeSumSimSwaptionPrice = nThreads * sizeof(FTYPE);
     size_t sizeSumSquareSimSwaptionPrice = nThreads * sizeof(FTYPE);
 
     // matrix
-    size_t sizeFactors = nSwaptions * iFactors * (iN - 1) * sizeof(FTYPE);
-    size_t sizeHJMPath = nSwaptions * iN * (iN * BLOCK_SIZE) * sizeof(FTYPE);
-    size_t sizeDrifts = nSwaptions * iFactors * (iN - 1) * sizeof(FTYPE);
+    size_t sizeFactors = nSwaptionsDuty * iFactors * (iN - 1) * sizeof(FTYPE);
+    size_t sizeHJMPath = nSwaptionsDuty * iN * (iN * BLOCK_SIZE) * sizeof(FTYPE);
+    size_t sizeDrifts = nSwaptionsDuty * iFactors * (iN - 1) * sizeof(FTYPE);
     size_t sizeZ = iFactors * iN * BLOCK_SIZE* sizeof(FTYPE);
 #endif
 
@@ -509,7 +530,7 @@ int main(int argc, char *argv[])
 
 #if defined(ENABLE_CPU)
     checkErrors(clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&bufferSwaptions), (char*)"clSetKernelArg", __LINE__);
-    checkErrors(clSetKernelArg(kernel, 1, sizeof(cl_int), (void*)&nSwaptions), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 1, sizeof(cl_int), (void*)&nSwaptionsDuty), (char*)"clSetKernelArg", __LINE__);
     checkErrors(clSetKernelArg(kernel, 2, sizeof(cl_int), (void*)&NUM_TRIALS), (char*)"clSetKernelArg", __LINE__);
     checkErrors(clSetKernelArg(kernel, 3, sizeof(cl_int), (void*)&BLOCK_SIZE_ARG), (char*)"clSetKernelArg", __LINE__);
     checkErrors(clSetKernelArg(kernel, 4, sizeof(cl_mem), (void*)&bufYield), (char*)"clSetKernelArg", __LINE__);
@@ -528,7 +549,7 @@ int main(int argc, char *argv[])
     checkErrors(clSetKernelArg(kernel, 17, sizeof(cl_mem), (void*)&bufRandZ), (char*)"clSetKernelArg", __LINE__);
 #elif defined(ENABLE_GPU)
     checkErrors(clSetKernelArg(kernel, 0, sizeof(cl_mem), (void*)&bufferSwaptions), (char*)"clSetKernelArg", __LINE__);
-    checkErrors(clSetKernelArg(kernel, 1, sizeof(cl_int), (void*)&nSwaptions), (char*)"clSetKernelArg", __LINE__);
+    checkErrors(clSetKernelArg(kernel, 1, sizeof(cl_int), (void*)&nSwaptionsDuty), (char*)"clSetKernelArg", __LINE__);
     checkErrors(clSetKernelArg(kernel, 2, sizeof(cl_int), (void*)&NUM_TRIALS), (char*)"clSetKernelArg", __LINE__);
     checkErrors(clSetKernelArg(kernel, 3, sizeof(cl_int), (void*)&BLOCK_SIZE_ARG), (char*)"clSetKernelArg", __LINE__);
     checkErrors(clSetKernelArg(kernel, 4, sizeof(cl_mem), (void*)&bufYield), (char*)"clSetKernelArg", __LINE__);
@@ -586,10 +607,10 @@ int main(int argc, char *argv[])
 
 #if defined(ENABLE_SEQ) || defined(ENABLE_THREAD)
     // setting up multiple swaptions
-    swaptions = (parm *)malloc(sizeof(parm)*nSwaptions);
-    ppdYield = static_cast< FTYPE** >(malloc(nSwaptions * sizeof(FTYPE*)));
-    pppdFactors = static_cast< FTYPE*** >(malloc(nSwaptions * sizeof(FTYPE**)));
-    for (i = 0; i < nSwaptions; ++i) {
+    swaptions = (parm *)malloc(sizeof(parm)*nSwaptionsDuty);
+    ppdYield = static_cast< FTYPE** >(malloc(nSwaptionsDuty * sizeof(FTYPE*)));
+    pppdFactors = static_cast< FTYPE*** >(malloc(nSwaptionsDuty * sizeof(FTYPE**)));
+    for (i = 0; i < nSwaptionsDuty; ++i) {
         ppdYield[i] = dvector(0, iN - 1);
         pppdFactors[i] = dmatrix(0, iFactors - 1, 0, iN - 2);
     }
@@ -609,13 +630,13 @@ int main(int argc, char *argv[])
 #endif
 
     int k;
-    for (i = 0; i < nSwaptions; i++) {
-        swaptions[i].Id = i;
+    for (i = 0; i < nSwaptionsDuty; i++) {
+        swaptions[i].Id = swaption_begin_id + i;
         swaptions[i].iN = iN;
         swaptions[i].iFactors = iFactors;
         swaptions[i].dYears = dYears;
 
-        swaptions[i].dStrike =  (double)i / (double)nSwaptions;
+        swaptions[i].dStrike =  (double)(swaption_begin_id + i) / (double)nSwaptions;
         swaptions[i].dCompounding =  0;
         swaptions[i].dMaturity =  1;
         swaptions[i].dTenor =  2.0;
@@ -677,9 +698,9 @@ int main(int argc, char *argv[])
     checkErrors(clEnqueueReadBuffer(command_queue, bufSumSquareSimSwaptionPrice, CL_FALSE, 0, sizeSumSquareSimSwaptionPrice, pdSumSquareSimSwaptionPrice, 0, NULL, NULL), (char*)"clEnqueueReadBuffer", __LINE__);
     checkErrors(clFinish(command_queue), (char*)"clFinish", __LINE__);
 
-    for (i = 0; i < nSwaptions; ++i) {
-        int start_tid = (i * nThreads + nSwaptions - 1) / nSwaptions;
-        int end_tid = ((i + 1) * nThreads + nSwaptions - 1) / nSwaptions;
+    for (i = 0; i < nSwaptionsDuty; ++i) {
+        int start_tid = (i * nThreads + nSwaptionsDuty - 1) / nSwaptionsDuty;
+        int end_tid = ((i + 1) * nThreads + nSwaptionsDuty - 1) / nSwaptionsDuty;
         FTYPE sum = 0.0;
         FTYPE sumSquare = 0.0;
         for (j = start_tid; j < end_tid; ++j) {
@@ -695,13 +716,41 @@ int main(int argc, char *argv[])
     free(pdSumSquareSimSwaptionPrice);
 #endif
 
-    for (i = 0; i < nSwaptions; i++) {
-        fprintf(stderr,"Swaption%d: [SwaptionPrice: %.10lf StdError: %.10lf] \n", 
+#if defined(ENABLE_MPI)
+    FTYPE* reduced_data = (FTYPE*)calloc(nSwaptions * 2, sizeof(FTYPE));
+    for (i = 0; i < nSwaptionsDuty; ++i) {
+        reduced_data[(swaption_begin_id + i) * 2] = swaptions[i].dSimSwaptionMeanPrice;
+        reduced_data[(swaption_begin_id + i) * 2 + 1] = swaptions[i].dSimSwaptionStdError;
+    }
+    if (myid == 0) {
+        for(int n = 1; n < numnodes; ++n) {
+            int from = n * nSwaptionsPerNode;
+            int to = from + nSwaptionsPerNode;
+            if (n == numnodes - 1) {
+                to = nSwaptions;
+            }
+            MPI_Recv(&reduced_data[from * 2], (to - from) * 2, MPI_DOUBLE, n, from, MPI_COMM_WORLD, &status);
+        }
+    } else {
+        MPI_Send(&reduced_data[swaption_begin_id * 2], nSwaptionsDuty * 2, MPI_DOUBLE, 0, swaption_begin_id, MPI_COMM_WORLD);
+    }
+    if (myid == 0) {
+        for (i = 0; i < nSwaptions; i++) {
+            fprintf(stderr,"Swaption%d: [SwaptionPrice: %.10lf StdError: %.10lf] \n",
+                    i, reduced_data[i * 2], reduced_data[i * 2 + 1]);
+        }
+    }
+    free(reduced_data);
+    MPI_Finalize();
+#else
+    for (i = 0; i < nSwaptionsDuty; i++) {
+        fprintf(stderr,"Swaption%d: [SwaptionPrice: %.10lf StdError: %.10lf] \n",
                 i, swaptions[i].dSimSwaptionMeanPrice, swaptions[i].dSimSwaptionStdError);
     }
+#endif
 
 #if defined(ENABLE_SEQ) || defined(ENABLE_THREAD)
-    for (i = 0; i < nSwaptions; i++) {
+    for (i = 0; i < nSwaptionsDuty; i++) {
         free_dvector(ppdYield[i], 0, swaptions[i].iN-1);
         free_dmatrix(pppdFactors[i], 0, swaptions[i].iFactors-1, 0, swaptions[i].iN-2);
     }

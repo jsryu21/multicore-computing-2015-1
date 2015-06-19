@@ -1,2 +1,2 @@
 #!/bin/bash
-thorq --add --mode mpi --node 4 --device gpu ./swaptions_mpi -ns 128 -sm 1000000
+thorq --add --mode mpi --node 4 --device gpu ./swaptions_mpi -nt 2048 -ls 16 -ns 128 -sm 1000000

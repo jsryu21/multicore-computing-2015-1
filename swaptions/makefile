@@ -36,7 +36,7 @@ ifeq "$(version)" "gpu"
 endif
 ifeq "$(version)" "mpi"
 	CXX = mpic++
-	DEF := $(DEF) -DENABLE_MPI
+	DEF := $(DEF) -DENABLE_GPU -DENABLE_MPI
 	CXXFLAGS := $(CXXFLAGS) -lOpenCL
 	EXEC := $(EXEC_MPI)
 endif
